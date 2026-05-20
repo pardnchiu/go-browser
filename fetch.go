@@ -229,28 +229,38 @@ func load(ctx context.Context, b *gorod.Browser, href string, parsed *url.URL, t
 		settleCancel()
 	}
 
+	initial, err := page.HTML()
+	if err != nil {
+		return nil, fmt.Errorf("page.HTML: %w", err)
+	}
+	snapshots := []string{initial}
+
 scrollLoop:
 	for i := 0; i < opt.ScrollCount; i++ {
-		_, _ = page.Eval(`() => window.scrollTo(0, document.body.scrollHeight)`)
-		delay := time.Duration(1+rand.IntN(5)) * time.Second
+		delay := time.Duration(1+rand.IntN(3)) * time.Second
 		select {
 		case <-ctx.Done():
 			break scrollLoop
 		case <-time.After(delay):
 		}
-	}
-
-	htmlSrc, err := page.HTML()
-	if err != nil {
-		return nil, fmt.Errorf("page.HTML: %w", err)
-	}
-
-	htmlSrc, err = InlineTimeElements(htmlSrc)
-	if err != nil {
-		return nil, fmt.Errorf("InlineTimeElements: %w", err)
+		_, _ = page.Eval(`() => new Promise(r => { const s = window.scrollY, e = document.documentElement.scrollHeight, d = 300, t0 = performance.now(); const step = t => { const k = Math.min((t - t0) / d, 1); window.scrollTo(0, s + (e - s) * k); k < 1 ? requestAnimationFrame(step) : r(); }; requestAnimationFrame(step); })`)
+		_ = page.WaitDOMStable(opt.IdleWait, 0.01)
+		snap, err := page.HTML()
+		if err != nil {
+			return nil, fmt.Errorf("page.HTML: %w", err)
+		}
+		snapshots = append(snapshots, snap)
 	}
 
 	if opt.Type == TypeHTML {
+		merged, err := Merge(snapshots)
+		if err != nil {
+			return nil, fmt.Errorf("Merge: %w", err)
+		}
+		htmlSrc, err := InlineTimeElements(merged)
+		if err != nil {
+			return nil, fmt.Errorf("InlineTimeElements: %w", err)
+		}
 		return &Result{
 			Href:     href,
 			FinalURL: finalURL,
@@ -259,26 +269,47 @@ scrollLoop:
 		}, nil
 	}
 
-	article, err := readability.FromReader(strings.NewReader(htmlSrc), parsed)
-	if err != nil {
-		return nil, fmt.Errorf("readability: %w", err)
-	}
-
-	lowTitle := strings.ToLower(strings.TrimSpace(article.Title))
-	for _, pat := range []string{"just a moment", "attention required", "checking your browser", "access denied", "請稍候"} {
-		if strings.Contains(lowTitle, pat) {
-			return nil, &Error{Status: 403, Href: href}
+	var firstArticle *readability.Article
+	contentParts := make([]string, 0, len(snapshots))
+	for _, snap := range snapshots {
+		inlined, err := InlineTimeElements(snap)
+		if err != nil {
+			continue
+		}
+		article, err := readability.FromReader(strings.NewReader(inlined), parsed)
+		if err != nil {
+			continue
+		}
+		if firstArticle == nil {
+			a := article
+			firstArticle = &a
+			lowTitle := strings.ToLower(strings.TrimSpace(article.Title))
+			for _, pat := range []string{"just a moment", "attention required", "checking your browser", "access denied", "請稍候"} {
+				if strings.Contains(lowTitle, pat) {
+					return nil, &Error{Status: 403, Href: href}
+				}
+			}
+		}
+		if c := strings.TrimSpace(article.Content); c != "" {
+			contentParts = append(contentParts, c)
 		}
 	}
+	if firstArticle == nil {
+		return nil, fmt.Errorf("readability: no article extracted from %d snapshots", len(snapshots))
+	}
+	article := *firstArticle
 
-	content := strings.TrimSpace(article.Content)
-	if content == "" {
-		content = htmlSrc
+	content := strings.Join(contentParts, "\n")
+	if strings.TrimSpace(content) == "" {
+		merged, _ := Merge(snapshots)
+		inlined, _ := InlineTimeElements(merged)
+		content = inlined
 	}
 	md, err := HTMLToMarkdown(content, href, opt.KeepLinks)
 	if err != nil {
 		return nil, fmt.Errorf("HTMLToMarkdown: %w", err)
 	}
+	md = DedupMarkdownParagraphs(md)
 	if md == "" {
 		return nil, &Error{Status: 204, Href: href}
 	}

@@ -2,11 +2,156 @@ package goBrowser
 
 import (
 	"fmt"
+	"hash/fnv"
 	"net/url"
 	"strings"
 
 	"golang.org/x/net/html"
 )
+
+func Merge(snapshots []string) (string, error) {
+	switch len(snapshots) {
+	case 0:
+		return "", fmt.Errorf("no snapshots")
+	case 1:
+		return snapshots[0], nil
+	}
+
+	base, err := html.Parse(strings.NewReader(snapshots[0]))
+	if err != nil {
+		return "", fmt.Errorf("html.Parse: %w", err)
+	}
+	baseBody := findBody(base)
+	if baseBody == nil {
+		return snapshots[0], nil
+	}
+
+	for _, snap := range snapshots[1:] {
+		doc, err := html.Parse(strings.NewReader(snap))
+		if err != nil {
+			continue
+		}
+		body := findBody(doc)
+		if body == nil {
+			continue
+		}
+		for c := body.FirstChild; c != nil; {
+			next := c.NextSibling
+			body.RemoveChild(c)
+			baseBody.AppendChild(c)
+			c = next
+		}
+	}
+
+	var buf strings.Builder
+	if err := html.Render(&buf, base); err != nil {
+		return "", fmt.Errorf("html.Render: %w", err)
+	}
+	return buf.String(), nil
+}
+
+func findBody(n *html.Node) *html.Node {
+	if n.Type == html.ElementNode && strings.ToLower(n.Data) == "body" {
+		return n
+	}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if b := findBody(c); b != nil {
+			return b
+		}
+	}
+	return nil
+}
+
+func DedupTree(nodes []*Node) []*Node {
+	seen := map[uint64]bool{}
+	return dedupTreeWalk(nodes, seen)
+}
+
+func dedupTreeWalk(nodes []*Node, seen map[uint64]bool) []*Node {
+	out := make([]*Node, 0, len(nodes))
+	for _, n := range nodes {
+		if isDedupCandidate(n) {
+			h := nodeTextHash(n)
+			if h != 0 {
+				if seen[h] {
+					continue
+				}
+				seen[h] = true
+			}
+		}
+		n.Children = dedupTreeWalk(n.Children, seen)
+		if n.Type != "linebreak" && n.Text == "" && len(n.Children) == 0 {
+			continue
+		}
+		out = append(out, n)
+	}
+	return out
+}
+
+func isDedupCandidate(n *Node) bool {
+	switch n.Type {
+	case "paragraph", "heading", "list_item", "blockquote", "code_block", "image":
+		return true
+	}
+	return false
+}
+
+func nodeTextHash(n *Node) uint64 {
+	if n == nil {
+		return 0
+	}
+	var sb strings.Builder
+	var walk func(*Node)
+	walk = func(x *Node) {
+		if x.Text != "" {
+			sb.WriteString(x.Text)
+			sb.WriteByte('\x1f')
+		}
+		for _, c := range x.Children {
+			walk(c)
+		}
+	}
+	walk(n)
+	if sb.Len() == 0 {
+		return 0
+	}
+	h := fnv.New64a()
+	h.Write([]byte(sb.String()))
+	return h.Sum64()
+}
+
+func DedupMarkdownParagraphs(md string) string {
+	lines := strings.Split(md, "\n")
+	seen := map[string]bool{}
+	var out []string
+	var para []string
+
+	flush := func() {
+		if len(para) == 0 {
+			return
+		}
+		key := strings.TrimSpace(strings.Join(para, "\n"))
+		if key != "" && !seen[key] {
+			seen[key] = true
+			out = append(out, para...)
+		}
+		para = nil
+	}
+
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			flush()
+			if len(out) > 0 && out[len(out)-1] != "" {
+				out = append(out, "")
+			}
+		} else {
+			para = append(para, line)
+		}
+	}
+	flush()
+
+	return strings.TrimSpace(strings.Join(out, "\n"))
+}
 
 func InlineTimeElements(htmlSrc string) (string, error) {
 	if !strings.Contains(htmlSrc, "<time") {
@@ -278,6 +423,7 @@ func HTMLToNode(content, baseURL string, keepLinks bool) ([]*Node, error) {
 	}
 
 	children := walkChildren(doc)
+	children = DedupTree(children)
 	return flattenChildren(children), nil
 }
 
@@ -285,7 +431,7 @@ func flattenChildren(nodes []*Node) []*Node {
 	out := make([]*Node, 0, len(nodes))
 	for _, c := range nodes {
 		c.Children = flattenChildren(c.Children)
-		if c.Type == "container" && len(c.Children) == 1 {
+		if len(c.Children) == 1 {
 			out = append(out, c.Children[0])
 			continue
 		}
