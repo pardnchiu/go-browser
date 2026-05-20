@@ -8,6 +8,292 @@ import (
 	"golang.org/x/net/html"
 )
 
+func InlineTimeElements(htmlSrc string) (string, error) {
+	if !strings.Contains(htmlSrc, "<time") {
+		return htmlSrc, nil
+	}
+	doc, err := html.Parse(strings.NewReader(htmlSrc))
+	if err != nil {
+		return "", fmt.Errorf("html.Parse: %w", err)
+	}
+
+	var collectText func(*html.Node, *strings.Builder)
+	collectText = func(n *html.Node, b *strings.Builder) {
+		if n.Type == html.TextNode {
+			b.WriteString(n.Data)
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			collectText(c, b)
+		}
+	}
+
+	var timeNodes []*html.Node
+	var collect func(*html.Node)
+	collect = func(n *html.Node) {
+		if n.Type == html.ElementNode && strings.ToLower(n.Data) == "time" {
+			timeNodes = append(timeNodes, n)
+			return
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			collect(c)
+		}
+	}
+	collect(doc)
+
+	for _, t := range timeNodes {
+		dt := ""
+		for _, a := range t.Attr {
+			if a.Key == "datetime" {
+				dt = a.Val
+				break
+			}
+		}
+		var inner strings.Builder
+		collectText(t, &inner)
+		innerText := strings.TrimSpace(inner.String())
+
+		var text string
+		switch {
+		case dt != "" && innerText != "":
+			text = " [" + dt + "] " + innerText + " "
+		case dt != "":
+			text = " [" + dt + "] "
+		case innerText != "":
+			text = " " + innerText + " "
+		}
+
+		parent := t.Parent
+		if parent == nil {
+			continue
+		}
+
+		if text == "" {
+			parent.RemoveChild(t)
+			continue
+		}
+
+		textNode := &html.Node{Type: html.TextNode, Data: text}
+
+		if parent.Type == html.ElementNode && strings.ToLower(parent.Data) == "a" {
+			onlyChild := true
+			for sib := parent.FirstChild; sib != nil; sib = sib.NextSibling {
+				if sib == t {
+					continue
+				}
+				if sib.Type == html.TextNode && strings.TrimSpace(sib.Data) == "" {
+					continue
+				}
+				onlyChild = false
+				break
+			}
+			if onlyChild {
+				if grand := parent.Parent; grand != nil {
+					grand.InsertBefore(textNode, parent)
+					grand.RemoveChild(parent)
+					continue
+				}
+			}
+		}
+
+		parent.InsertBefore(textNode, t)
+		parent.RemoveChild(t)
+	}
+
+	var buf strings.Builder
+	if err := html.Render(&buf, doc); err != nil {
+		return "", fmt.Errorf("html.Render: %w", err)
+	}
+	return buf.String(), nil
+}
+
+type Node struct {
+	Type     string  `json:"type"`
+	Text     string  `json:"text,omitempty"`
+	Level    int     `json:"level,omitempty"`
+	Datetime string  `json:"datetime,omitempty"`
+	Href     string  `json:"href,omitempty"`
+	Src      string  `json:"src,omitempty"`
+	Alt      string  `json:"alt,omitempty"`
+	Children []*Node `json:"children,omitempty"`
+}
+
+func HTMLToNode(content, baseURL string, keepLinks bool) ([]*Node, error) {
+	doc, err := html.Parse(strings.NewReader(content))
+	if err != nil {
+		return nil, fmt.Errorf("html.Parse: %w", err)
+	}
+
+	var walkChildren func(*html.Node) []*Node
+	var walk func(*html.Node) []*Node
+
+	walkChildren = func(n *html.Node) []*Node {
+		var out []*Node
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			out = append(out, walk(c)...)
+		}
+		return out
+	}
+
+	walk = func(n *html.Node) []*Node {
+		if n.Type == html.TextNode {
+			t := strings.TrimSpace(n.Data)
+			if t == "" {
+				return nil
+			}
+			return []*Node{{Type: "text", Text: t}}
+		}
+		if n.Type != html.ElementNode {
+			return walkChildren(n)
+		}
+
+		tag := strings.ToLower(n.Data)
+
+		switch tag {
+		case "script", "style", "noscript", "iframe", "form", "button",
+			"input", "select", "textarea", "svg", "canvas", "video", "audio":
+			return nil
+
+		case "nav", "header", "footer", "aside":
+			if !keepLinks {
+				return nil
+			}
+			ch := walkChildren(n)
+			if len(ch) == 0 {
+				return nil
+			}
+			return []*Node{{Type: tag, Children: ch}}
+
+		case "img":
+			if !keepLinks {
+				return nil
+			}
+			alt, src := extractImage(n, baseURL)
+			if src == "" {
+				return nil
+			}
+			return []*Node{{Type: "image", Src: src, Alt: alt}}
+
+		case "h1", "h2", "h3", "h4", "h5", "h6":
+			ch := walkChildren(n)
+			if len(ch) == 0 {
+				return nil
+			}
+			return []*Node{{Type: "heading", Level: int(tag[1] - '0'), Children: ch}}
+
+		case "p":
+			ch := walkChildren(n)
+			if len(ch) == 0 {
+				return nil
+			}
+			return []*Node{{Type: "paragraph", Children: ch}}
+
+		case "br":
+			return []*Node{{Type: "linebreak"}}
+
+		case "li":
+			ch := walkChildren(n)
+			if len(ch) == 0 {
+				return nil
+			}
+			return []*Node{{Type: "list_item", Children: ch}}
+
+		case "ul":
+			ch := walkChildren(n)
+			if len(ch) == 0 {
+				return nil
+			}
+			return []*Node{{Type: "list", Children: ch}}
+
+		case "ol":
+			ch := walkChildren(n)
+			if len(ch) == 0 {
+				return nil
+			}
+			return []*Node{{Type: "ordered_list", Children: ch}}
+
+		case "strong", "b":
+			ch := walkChildren(n)
+			if len(ch) == 0 {
+				return nil
+			}
+			return []*Node{{Type: "bold", Children: ch}}
+
+		case "em", "i":
+			ch := walkChildren(n)
+			if len(ch) == 0 {
+				return nil
+			}
+			return []*Node{{Type: "italic", Children: ch}}
+
+		case "time":
+			dt := attrMap(n)["datetime"]
+			ch := walkChildren(n)
+			if dt == "" && len(ch) == 0 {
+				return nil
+			}
+			return []*Node{{Type: "time", Datetime: dt, Children: ch}}
+
+		case "a":
+			ch := walkChildren(n)
+			if !keepLinks {
+				return ch
+			}
+			href := resolveLink(attrMap(n)["href"], baseURL)
+			if len(ch) == 0 {
+				return nil
+			}
+			return []*Node{{Type: "link", Href: href, Children: ch}}
+
+		case "blockquote":
+			ch := walkChildren(n)
+			if len(ch) == 0 {
+				return nil
+			}
+			return []*Node{{Type: "blockquote", Children: ch}}
+
+		case "code":
+			ch := walkChildren(n)
+			if len(ch) == 0 {
+				return nil
+			}
+			return []*Node{{Type: "code", Children: ch}}
+
+		case "pre":
+			ch := walkChildren(n)
+			if len(ch) == 0 {
+				return nil
+			}
+			return []*Node{{Type: "code_block", Children: ch}}
+
+		default:
+			ch := walkChildren(n)
+			if len(ch) == 0 {
+				return nil
+			}
+			if isBlock(tag) {
+				return []*Node{{Type: "container", Children: ch}}
+			}
+			return ch
+		}
+	}
+
+	children := walkChildren(doc)
+	return flattenChildren(children), nil
+}
+
+func flattenChildren(nodes []*Node) []*Node {
+	out := make([]*Node, 0, len(nodes))
+	for _, c := range nodes {
+		c.Children = flattenChildren(c.Children)
+		if c.Type == "container" && len(c.Children) == 1 {
+			out = append(out, c.Children[0])
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
 func HTMLToMarkdown(content, baseURL string, keepLinks bool) (string, error) {
 	node, err := html.Parse(strings.NewReader(content))
 	if err != nil {

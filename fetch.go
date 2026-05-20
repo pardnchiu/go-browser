@@ -58,6 +58,7 @@ type Result struct {
 	PublishedAt string
 	Excerpt     string
 	Status      int
+	Tree        []*Node `json:",omitempty"`
 }
 
 type Error struct {
@@ -239,11 +240,14 @@ scrollLoop:
 		}
 	}
 
-	_, _ = page.Eval(`() => document.querySelectorAll('time[datetime]').forEach(t => { const n = document.createTextNode(' [' + t.getAttribute('datetime') + '] '); t.parentNode.replaceChild(n, t) })`)
-
 	htmlSrc, err := page.HTML()
 	if err != nil {
 		return nil, fmt.Errorf("page.HTML: %w", err)
+	}
+
+	htmlSrc, err = InlineTimeElements(htmlSrc)
+	if err != nil {
+		return nil, fmt.Errorf("InlineTimeElements: %w", err)
 	}
 
 	if opt.Type == TypeHTML {
@@ -296,6 +300,12 @@ scrollLoop:
 	}
 
 	if opt.Type == TypeJSON {
+		tree, err := HTMLToNode(content, href, opt.KeepLinks)
+		if err != nil {
+			return nil, fmt.Errorf("HTMLToNode: %w", err)
+		}
+		result.Tree = tree
+		result.Content = ""
 		b, err := json.Marshal(result)
 		if err != nil {
 			return nil, fmt.Errorf("marshal json: %w", err)
