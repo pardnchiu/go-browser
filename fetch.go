@@ -216,9 +216,6 @@ func load(ctx context.Context, b *gorod.Browser, href string, parsed *url.URL, t
 	status := 0
 	if v, err := page.Eval(`() => { const e = performance.getEntriesByType("navigation")[0]; return e ? e.responseStatus : 0 }`); err == nil {
 		status = v.Value.Int()
-		if status >= 400 {
-			return nil, &Error{Status: status, Href: href}
-		}
 	}
 
 	_ = page.WaitDOMStable(opt.IdleWait, 0.01)
@@ -247,7 +244,7 @@ scrollLoop:
 		_ = page.WaitDOMStable(opt.IdleWait, 0.01)
 		snap, err := page.HTML()
 		if err != nil {
-			return nil, fmt.Errorf("page.HTML: %w", err)
+			break scrollLoop
 		}
 		snapshots = append(snapshots, snap)
 	}
@@ -295,6 +292,9 @@ scrollLoop:
 		}
 	}
 	if firstArticle == nil {
+		if status >= 400 {
+			return nil, &Error{Status: status, Href: href}
+		}
 		return nil, fmt.Errorf("readability: no article extracted from %d snapshots", len(snapshots))
 	}
 	article := *firstArticle
