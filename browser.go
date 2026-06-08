@@ -17,14 +17,15 @@ import (
 )
 
 type tab struct {
-	page     *gorod.Page
-	opt      *Option
-	href     string
-	parsed   *url.URL
-	finalURL string
-	status   int
-	release  func()
-	ctx      context.Context
+	page        *gorod.Page
+	opt         *Option
+	href        string
+	parsed      *url.URL
+	finalURL    string
+	status      int
+	contentType string
+	release     func()
+	ctx         context.Context
 }
 
 var (
@@ -228,6 +229,9 @@ func (t *tab) navigate(href string) error {
 	if v, err := t.page.Eval(`() => { const e = performance.getEntriesByType("navigation")[0]; return e ? e.responseStatus : 0 }`); err == nil {
 		t.status = v.Value.Int()
 	}
+	if v, err := t.page.Eval(`() => document.contentType`); err == nil {
+		t.contentType = v.Value.String()
+	}
 	return nil
 }
 
@@ -276,6 +280,28 @@ func (t *tab) eval(js string) (string, error) {
 }
 
 func (t *tab) snapshot() (*Result, error) {
+	if strings.Contains(t.contentType, "json") || strings.Contains(t.contentType, "xml") {
+		raw := ""
+		if strings.Contains(t.contentType, "json") {
+			if v, err := t.page.Eval(`() => document.body.innerText`); err == nil {
+				raw = v.Value.String()
+			}
+		} else {
+			if v, err := t.page.Eval(`() => { const s = document.getElementById('webkit-xml-viewer-source-xml'); return s ? s.innerHTML : new XMLSerializer().serializeToString(document) }`); err == nil {
+				raw = v.Value.String()
+			}
+		}
+		if raw != "" {
+			return &Result{
+				Href:        t.href,
+				FinalURL:    t.finalURL,
+				Content:     raw,
+				ContentType: t.contentType,
+				Status:      t.status,
+			}, nil
+		}
+	}
+
 	htmlSrc, err := t.page.HTML()
 	if err != nil {
 		return nil, fmt.Errorf("page.HTML: %w", err)

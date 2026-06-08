@@ -53,6 +53,7 @@ type Result struct {
 	Href        string
 	FinalURL    string
 	Content     string
+	ContentType string `json:",omitempty"`
 	Title       string
 	Author      string
 	PublishedAt string
@@ -216,6 +217,32 @@ func load(ctx context.Context, b *gorod.Browser, href string, parsed *url.URL, t
 	status := 0
 	if v, err := page.Eval(`() => { const e = performance.getEntriesByType("navigation")[0]; return e ? e.responseStatus : 0 }`); err == nil {
 		status = v.Value.Int()
+	}
+
+	contentType := ""
+	if v, err := page.Eval(`() => document.contentType`); err == nil {
+		contentType = v.Value.String()
+	}
+	if strings.Contains(contentType, "json") || strings.Contains(contentType, "xml") {
+		raw := ""
+		if strings.Contains(contentType, "json") {
+			if v, err := page.Eval(`() => document.body.innerText`); err == nil {
+				raw = v.Value.String()
+			}
+		} else {
+			if v, err := page.Eval(`() => { const s = document.getElementById('webkit-xml-viewer-source-xml'); return s ? s.innerHTML : new XMLSerializer().serializeToString(document) }`); err == nil {
+				raw = v.Value.String()
+			}
+		}
+		if raw != "" {
+			return &Result{
+				Href:        href,
+				FinalURL:    finalURL,
+				Content:     raw,
+				ContentType: contentType,
+				Status:      status,
+			}, nil
+		}
 	}
 
 	_ = page.WaitDOMStable(opt.IdleWait, 0.01)
