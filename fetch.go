@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"net/url"
@@ -123,20 +124,75 @@ func Fetch(ctx context.Context, href string, timeout time.Duration, opt *Option)
 		return nil, err
 	}
 
-	if o.SameSession {
-		b, cleanup, err := launchWithSnapshot(ctx, o.Profile, o.UserAgent, !hasDisplay())
+	if requiresSession(parsed.Hostname()) {
+		return fetchWith(ctx, href, parsed, timeout, o, false)
+	}
+
+	result, err := fetchWith(ctx, href, parsed, timeout, o, true)
+	if !needsRetry(result, err) {
+		return result, err
+	}
+	if !hasDisplay() {
+		return result, err
+	}
+	return fetchWith(ctx, href, parsed, timeout, o, false)
+}
+
+//go:embed embed/session_domains.json
+var sessionDomainsJSON string
+
+var sessionDomains = func() []string {
+	var list []string
+	_ = json.Unmarshal([]byte(sessionDomainsJSON), &list)
+	return list
+}()
+
+func requiresSession(host string) bool {
+	host = strings.ToLower(host)
+	for _, d := range sessionDomains {
+		if host == d || strings.HasSuffix(host, "."+d) {
+			return true
+		}
+	}
+	return false
+}
+
+func needsRetry(result *Result, err error) bool {
+	if err != nil {
+		return shouldRetry(err)
+	}
+	switch result.Status {
+	case 403, 429, 503:
+		return true
+	}
+	return false
+}
+
+func shouldRetry(err error) bool {
+	var e *Error
+	if errors.As(err, &e) {
+		switch e.Status {
+		case 204, 403, 429, 503:
+			return true
+		}
+	}
+	return strings.Contains(err.Error(), "no article extracted")
+}
+
+func fetchWith(ctx context.Context, href string, parsed *url.URL, timeout time.Duration, opt *Option, headless bool) (*Result, error) {
+	if !headless || opt.SameSession {
+		b, cleanup, err := launchWithSnapshot(ctx, opt.Profile, opt.UserAgent, headless)
 		if err != nil {
 			return nil, err
 		}
 		defer cleanup()
-		return load(ctx, b, href, parsed, timeout, o)
+		return load(ctx, b, href, parsed, timeout, opt)
 	}
-
-	b, err := ensureBrowser(o.UserAgent, !hasDisplay())
+	b, err := ensureBrowser(opt.UserAgent, true)
 	if err != nil {
 		return nil, err
 	}
-	return load(ctx, b, href, parsed, timeout, o)
+	return load(ctx, b, href, parsed, timeout, opt)
 }
 
 func load(ctx context.Context, b *gorod.Browser, href string, parsed *url.URL, timeout time.Duration, opt *Option) (*Result, error) {
