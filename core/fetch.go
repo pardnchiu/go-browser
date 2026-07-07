@@ -45,9 +45,12 @@ type Option struct {
 	SettleJS    string
 	Viewport    *Viewport
 	SameSession bool
+	Headless    bool
 	Profile     string
 	Type        int
 	ScrollCount int
+
+	attemptHeadless bool
 }
 
 type Result struct {
@@ -124,18 +127,24 @@ func Fetch(ctx context.Context, href string, timeout time.Duration, opt *Option)
 		return nil, err
 	}
 
-	if requiresSession(parsed.Hostname()) {
-		return fetchWith(ctx, href, parsed, timeout, o, false)
+	if o.Headless || requiresSession(parsed.Hostname()) {
+		forced := *o
+		forced.attemptHeadless = false
+		return fetchWith(ctx, href, parsed, timeout, &forced)
 	}
 
-	result, err := fetchWith(ctx, href, parsed, timeout, o, true)
+	first := *o
+	first.attemptHeadless = true
+	result, err := fetchWith(ctx, href, parsed, timeout, &first)
 	if !needsRetry(result, err) {
 		return result, err
 	}
 	if !hasDisplay() {
 		return result, err
 	}
-	return fetchWith(ctx, href, parsed, timeout, o, false)
+	fallback := *o
+	fallback.attemptHeadless = false
+	return fetchWith(ctx, href, parsed, timeout, &fallback)
 }
 
 //go:embed embed/session_domains.json
@@ -179,9 +188,9 @@ func shouldRetry(err error) bool {
 	return strings.Contains(err.Error(), "no article extracted")
 }
 
-func fetchWith(ctx context.Context, href string, parsed *url.URL, timeout time.Duration, opt *Option, headless bool) (*Result, error) {
-	if !headless || opt.SameSession {
-		b, cleanup, err := launchWithSnapshot(ctx, opt.Profile, opt.UserAgent, headless)
+func fetchWith(ctx context.Context, href string, parsed *url.URL, timeout time.Duration, opt *Option) (*Result, error) {
+	if !opt.attemptHeadless || opt.SameSession {
+		b, cleanup, err := launchWithSnapshot(ctx, opt.Profile, opt.UserAgent, opt.attemptHeadless)
 		if err != nil {
 			return nil, err
 		}

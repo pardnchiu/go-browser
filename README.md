@@ -18,7 +18,7 @@ go get github.com/pardnchiu/go-browser
 ## 範例
 
 ```go
-import goBrowser "github.com/pardnchiu/go-browser"
+import goBrowser "github.com/pardnchiu/go-browser/core"
 
 defer goBrowser.Close()
 
