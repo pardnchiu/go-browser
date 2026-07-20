@@ -189,17 +189,15 @@ func shouldRetry(err error) bool {
 }
 
 func fetchWith(ctx context.Context, href string, parsed *url.URL, timeout time.Duration, opt *Option) (*Result, error) {
-	if opt.SameSession {
+	if !opt.attemptHeadless || opt.SameSession {
 		b, cleanup, err := launchWithSnapshot(ctx, opt.Profile, opt.UserAgent, opt.attemptHeadless)
-		if err == nil {
-			defer cleanup()
-			return load(ctx, b, href, parsed, timeout, opt)
-		}
-		if !errors.Is(err, ErrProfileNotFound) {
+		if err != nil {
 			return nil, err
 		}
+		defer cleanup()
+		return load(ctx, b, href, parsed, timeout, opt)
 	}
-	b, err := ensureBrowser(opt.UserAgent, opt.attemptHeadless)
+	b, err := ensureBrowser(opt.UserAgent, true)
 	if err != nil {
 		return nil, err
 	}
