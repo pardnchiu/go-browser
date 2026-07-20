@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -100,7 +101,7 @@ func ensureBrowser(userAgent string, headless bool) (*goRod.Browser, error) {
 		Set("user-agent", userAgent)
 
 	if !headless {
-		l = l.Set("window-position", "-32000,-32000")
+		l = withHeadedDisplayEnv(l.Set("window-position", "-32000,-32000"))
 	}
 
 	if bin := chromePath(); bin != "" {
@@ -175,7 +176,7 @@ func launchWithSnapshot(ctx context.Context, profileName, userAgent string, head
 		Set("user-agent", userAgent)
 
 	if !headless {
-		l = l.Set("window-position", "-32000,-32000")
+		l = withHeadedDisplayEnv(l.Set("window-position", "-32000,-32000"))
 	}
 
 	if bin := chromePath(); bin != "" {
@@ -295,7 +296,43 @@ func hasDisplay() bool {
 	if runtime.GOOS == "darwin" {
 		return true
 	}
-	return os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
+	if os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != "" {
+		return true
+	}
+	_, _, ok := wslgDisplay()
+	return ok
+}
+
+func wslgDisplay() (display, wayland string, ok bool) {
+	if runtime.GOOS != "linux" {
+		return "", "", false
+	}
+	if d := os.Getenv("DISPLAY"); d != "" {
+		return d, os.Getenv("WAYLAND_DISPLAY"), true
+	}
+	raw, err := os.ReadFile("/proc/sys/kernel/osrelease")
+	if err != nil || !strings.Contains(strings.ToLower(string(raw)), "microsoft") {
+		return "", "", false
+	}
+	if _, err := os.Stat("/mnt/wslg/.X11-unix/X0"); err != nil {
+		return "", "", false
+	}
+	return ":0", "wayland-0", true
+}
+
+func withHeadedDisplayEnv(l *launcher.Launcher) *launcher.Launcher {
+	d, w, ok := wslgDisplay()
+	if !ok {
+		return l
+	}
+	env := os.Environ()
+	if os.Getenv("DISPLAY") == "" {
+		env = append(env, "DISPLAY="+d)
+	}
+	if w != "" && os.Getenv("WAYLAND_DISPLAY") == "" {
+		env = append(env, "WAYLAND_DISPLAY="+w)
+	}
+	return l.Env(env...)
 }
 
 func chromePath() string {
