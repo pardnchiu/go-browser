@@ -121,14 +121,16 @@ func ensureBrowser(userAgent string, headless bool) (*goRod.Browser, error) {
 	return b, nil
 }
 
+var ErrProfileNotFound = errors.New("chrome profile not found")
+
 func launchWithSnapshot(ctx context.Context, profileName, userAgent string, headless bool) (*goRod.Browser, func(), error) {
 	profileRoot := chromeProfileRoot()
 	if profileRoot == "" {
-		return nil, nil, fmt.Errorf("cannot resolve chrome profile path on %s", runtime.GOOS)
+		return nil, nil, fmt.Errorf("%w: cannot resolve chrome profile path on %s", ErrProfileNotFound, runtime.GOOS)
 	}
 	srcProfileDir := filepath.Join(profileRoot, profileName)
 	if _, err := os.Stat(srcProfileDir); err != nil {
-		return nil, nil, fmt.Errorf("chrome profile %q not found at %s: %w", profileName, srcProfileDir, err)
+		return nil, nil, fmt.Errorf("%w: %q not found at %s: %w", ErrProfileNotFound, profileName, srcProfileDir, err)
 	}
 
 	tmpDir, err := os.MkdirTemp("", "rod-snapshot-*")
