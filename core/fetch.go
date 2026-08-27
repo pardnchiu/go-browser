@@ -78,7 +78,25 @@ func (e *Error) Error() string {
 const (
 	defaultIdleWait  = 2 * time.Second
 	defaultMaxLength = 1 << 20
+	stableWindow     = 400 * time.Millisecond
+	scrollPause      = 150 * time.Millisecond
+	scrollJitter     = 300 * time.Millisecond
 )
+
+func settle(ctx context.Context, page *gorod.Page, idleWait time.Duration) {
+	window := min(stableWindow, idleWait)
+	settleCtx, cancel := context.WithTimeout(ctx, idleWait)
+	defer cancel()
+	_ = page.Context(settleCtx).WaitDOMStable(window, 0.01)
+}
+
+func isScrollable(page *gorod.Page) bool {
+	v, err := page.Eval(`() => document.documentElement.scrollHeight > window.innerHeight + 4`)
+	if err != nil {
+		return false
+	}
+	return v.Value.Bool()
+}
 
 func prepareOpt(opt *Option) *Option {
 	o := Option{}
@@ -105,6 +123,8 @@ func prepareOpt(opt *Option) *Option {
 	}
 	if o.ScrollCount == 0 {
 		o.ScrollCount = defaultScrollCount
+	} else if o.ScrollCount < 0 {
+		o.ScrollCount = 0
 	}
 	return &o
 }
@@ -312,7 +332,7 @@ func load(ctx context.Context, b *gorod.Browser, href string, parsed *url.URL, t
 		}
 	}
 
-	_ = page.WaitDOMStable(opt.IdleWait, 0.01)
+	settle(ctx, page, opt.IdleWait)
 
 	if opt.SettleJS != "" {
 		settleCtx, settleCancel := context.WithTimeout(ctx, opt.IdleWait)
@@ -327,17 +347,20 @@ func load(ctx context.Context, b *gorod.Browser, href string, parsed *url.URL, t
 	snapshots := []string{initial}
 
 scrollLoop:
-	for i := 0; i < opt.ScrollCount; i++ {
-		delay := time.Duration(1+rand.IntN(3)) * time.Second
+	for i := 0; i < opt.ScrollCount && isScrollable(page); i++ {
+		delay := scrollPause + time.Duration(rand.IntN(int(scrollJitter)))
 		select {
 		case <-ctx.Done():
 			break scrollLoop
 		case <-time.After(delay):
 		}
 		_, _ = page.Eval(`() => new Promise(r => { const s = window.scrollY, e = document.documentElement.scrollHeight, d = 300, t0 = performance.now(); const step = t => { const k = Math.min((t - t0) / d, 1); window.scrollTo(0, s + (e - s) * k); k < 1 ? requestAnimationFrame(step) : r(); }; requestAnimationFrame(step); })`)
-		_ = page.WaitDOMStable(opt.IdleWait, 0.01)
+		settle(ctx, page, opt.IdleWait)
 		snap, err := page.HTML()
 		if err != nil {
+			break scrollLoop
+		}
+		if snap == snapshots[len(snapshots)-1] {
 			break scrollLoop
 		}
 		snapshots = append(snapshots, snap)
