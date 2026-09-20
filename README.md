@@ -4,18 +4,19 @@
 ***
 
 <p align="center">
-<strong>HEADLESS BROWSER AUTOMATION FOR GO — STEALTH, SESSIONS, AND SMART CONTENT EXTRACTION</strong>
+<strong>EXTRACT WEB CONTENT VIA CHROME — MARKDOWN OR HTML, READY FOR AGENTS</strong>
 </p>
 
 <p align="center">
 <a href="https://pkg.go.dev/github.com/pardnchiu/go-browser"><img src="https://img.shields.io/badge/GO-REFERENCE-blue?include_prereleases&style=for-the-badge" alt="Go Reference"></a>
 <a href="https://github.com/pardnchiu/go-browser/releases"><img src="https://img.shields.io/github/v/tag/pardnchiu/go-browser?include_prereleases&style=for-the-badge" alt="Release"></a>
 <a href="LICENSE"><img src="https://img.shields.io/github/license/pardnchiu/go-browser?include_prereleases&style=for-the-badge" alt="License"></a>
+<a href="https://app.codecov.io/github/pardnchiu/go-browser/tree/master"><img src="https://img.shields.io/codecov/c/github/pardnchiu/go-browser/master?include_prereleases&style=for-the-badge" alt="Coverage"></a>
 </p>
 
 ***
 
-> A Go library with stealth anti-detection, Chrome cookie session injection, and multi-snapshot content extraction
+> A Go library that extracts web content via Chrome with optional Markdown or HTML and cookie sessions
 
 ## Table of Contents
 
@@ -28,11 +29,11 @@
 
 > `go get github.com/pardnchiu/go-browser` · [Documentation](./doc/doc.md)
 
-- **Stealth Anti-Detection** — Built-in stealth.js injection and AutomationControlled bypass to reduce interception by Cloudflare and similar protections.
-- **Chrome Cookie Session Injection** — Extracts and decrypts cookies from the local Chrome profile, injecting them into a temporary browser instance to access login-required pages.
-- **Multi-Snapshot Merge** — Simulates scrolling behavior, captures multiple page snapshots, and merges with deduplication to fully extract dynamically loaded content.
-- **Interactive Tab Operations** — Supports creating tabs, clicking, typing, scrolling, executing JavaScript, and taking snapshots for form filling and multi-step workflows.
-- **Multi-Format Output** — Obtain Markdown, HTML, or structured JSON tree from a single request, with built-in readability parsing and paragraph deduplication.
+- **Chrome Content Extraction** — Opens pages with local Chrome or Chromium and returns Markdown or HTML; use Playwright MCP for full CDP workflows.
+- **Multi-Snapshot Merge** — Scrolls, captures multiple snapshots, then merges and deduplicates to cover dynamically loaded content.
+- **Chrome Cookie Sessions** — Decrypts cookies from the local Chrome profile and injects them to read login-required pages.
+- **Attempt Cookie Consent Dismissal** — After load, attempts to close consent banners without promising success on every site.
+- **Headless and UA Isolation** — Isolates browsers by headless mode and User-Agent, falling back to headed only on 403, 429, or 503 blocks.
 
 ## Architecture
 
@@ -40,15 +41,12 @@
 
 ```mermaid
 graph TB
-    A[Fetch / CreateTab] --> B[Launcher]
-    B --> C{Headless?}
-    C -->|Yes| D[Stealth JS]
-    C -->|No| E[Cookie Session]
-    D --> F[Page Navigate + Scroll]
-    E --> F
-    F --> G[Snapshot Merge]
-    G --> H[Readability + Dedup]
-    H --> I[Markdown / HTML / JSON]
+    A[Fetch] --> B[Launcher]
+    B --> C{Headless or Session}
+    C --> D[Navigate + Consent]
+    D --> E[Scroll + Snapshots]
+    E --> F[Merge + Readability]
+    F --> G[Markdown / HTML / JSON]
 ```
 
 ## License
@@ -57,13 +55,12 @@ This project is licensed under the [MIT LICENSE](LICENSE).
 
 ## Author
 
-<img src="https://github.com/pardnchiu.png" align="left" width="96" height="96" style="margin-right: 0.5rem;">
+Just [open an issue](https://github.com/pardnchiu/go-browser/issues/new) to share an idea.
 
-<h4 style="padding-top: 0">邱敬幃 Pardn Chiu</h4>
+<a href="https://github.com/pardnchiu/go-browser/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=pardnchiu/go-browser&cache_bust=2026-09-20" alt="go-browser contributors" />
+</a>
 
-<a href="mailto:hi@pardn.dev">hi@pardn.dev</a><br>
-<a href="https://linkedin.com/in/pardnchiu">https://linkedin.com/in/pardnchiu</a>
+---
 
-***
-
-©️ 2025 [邱敬幃 Pardn Chiu](https://linkedin.com/in/pardnchiu)
+©️ 2026 [邱敬幃 Pardn Chiu](https://www.linkedin.com/in/pardnchiu)

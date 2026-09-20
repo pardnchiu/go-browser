@@ -6,137 +6,116 @@
 
 ```mermaid
 graph TB
-    A[Fetch / CreateTab] --> B[Launcher]
-    B --> C{Headless?}
-    C -->|Yes| D[Stealth JS]
-    C -->|No| E[Cookie Session]
-    D --> F[Page Navigate + Scroll]
+    A[Fetch] --> B[Launcher]
+    B --> C{Headless 金鑰?}
+    C -->|是| D[依 headless 與 UA 隔離的瀏覽器]
+    C -->|否| E[Chrome Cookie 工作階段]
+    D --> F[導覽與捲動]
     E --> F
-    F --> G[Snapshot Merge]
-    G --> H[Readability + Dedup]
-    H --> I[Markdown / HTML / JSON]
+    F --> G[嘗試關閉 Cookie 同意]
+    G --> H[快照合併]
+    H --> I[Readability 與去重]
+    I --> J[Markdown / HTML / JSON]
 ```
 
 ## 模組：Launcher
 
-負責啟動與管理 Chrome 瀏覽器實例，支援 headless 與非 headless 模式，並提供閒置自動回收機制。
+依 headless 與 User-Agent 管理 Chrome 生命週期，提供可重用實例與可注入 Cookie 的暫時設定檔。
 
 ```mermaid
 graph TB
     subgraph Launcher
-        A[ensureBrowser] --> B[launcher.New]
-        B --> C[chromePath 偵測]
-        C --> D[Launch]
-        D --> E[Browser 連線]
-        E --> F[Browser Pool]
-        F --> G[Evictor]
-        G -->|5 分鐘閒置| H[Close Browser]
+        A[ensureBrowser] --> B{快取存在?}
+        B -->|是| C[重用並更新 lastUsed]
+        B -->|否| D[launcher.New]
+        D --> E[設定 headless、UA、no-sandbox]
+        E --> F[chromePath 尋找]
+        F --> G[Launch 與 Connect]
+        G --> H[寫入 browsers map]
+        H --> I[啟動 idle evictor]
+        C --> J[回傳 browser]
+        I --> J
     end
-    I[SetMaxConcurrency] --> F
-    J[acquireSem] --> F
-```
-
-## 模組：Cookie Session
-
-從本機 Chrome 設定檔提取並解密 Cookie，注入至臨時瀏覽器實例以存取需登入的頁面。
-
-```mermaid
-graph TB
-    subgraph CookieSession
-        A[launchWithSnapshot] --> B[複製 Chrome 設定檔]
-        B --> C[extractChromeCookies]
-        C --> D[chromeSafeStoragePassword]
-        D --> E[deriveChromeCookieKey]
-        E --> F[decryptChromeCookie]
-        F --> G[SetCookies]
-    end
-    H[macOS Keychain] --> D
-    I[Linux secret-tool] --> D
-    J[sqlite3] --> C
+    K[launchWithSnapshot] --> L[複製 Cookies 檔]
+    L --> M[由 OS keychain 解密]
+    M --> N[暫存設定檔啟動]
+    N --> O[SetCookies]
+    O --> P[回傳 browser 與 cleanup]
 ```
 
 ## 模組：Fetch
 
-核心擷取流程，負責導航、滾動、快照合併與內容提取。
+核心內容萃取管線：導覽、穩定等待、嘗試關閉同意橫幅、多快照合併，並輸出 Markdown、HTML 或 JSON。
 
 ```mermaid
 graph TB
     subgraph Fetch
-        A[Fetch] --> B{requiresSession?}
-        B -->|Yes| C[launchWithSnapshot]
-        B -->|No| D{attemptHeadless}
-        D --> E[ensureBrowser]
-        C --> F[load]
-        E --> F
-        F --> G[Navigate + WaitLoad]
-        G --> H[Stealth JS 注入]
-        H --> I[Settle JS]
-        I --> J[滾動迴圈]
-        J --> K[快照收集]
-        K --> L{Type}
-        L -->|Markdown| M[Readability + HTMLToMarkdown]
-        L -->|HTML| N[Merge + InlineTimeElements]
-        L -->|JSON| O[HTMLToNode]
-        M --> P[DedupMarkdownParagraphs]
-        N --> Q[Result]
-        O --> Q
-        P --> Q
+        A[parseHref] --> B{requiresSession?}
+        B -->|是| C[fetchWith SameSession]
+        B -->|否| D{Headless 強制?}
+        D -->|是| E[fetchWith headless]
+        D -->|否| F[先 headless]
+        F --> G{被擋 403/429/503?}
+        G -->|是且有顯示| H[headed fallback]
+        G -->|否| I[回傳結果]
+        E --> I
+        C --> I
+        H --> I
     end
+    J[load] --> K[建立 Page 與 Viewport]
+    K --> L[StealthJS EvalOnNewDocument]
+    L --> M[Navigate 與 WaitLoad]
+    M --> N[檢查最終 URL 與狀態]
+    N --> O[WaitDOMStable 與 SettleJS]
+    O --> P[handleConsent]
+    P --> Q[初始 HTML 快照]
+    Q --> R[捲動迴圈與多快照]
+    R --> S{Type?}
+    S -->|HTML| T[Merge 與 InlineTime]
+    S -->|Markdown| U[Readability 合併再轉 Markdown]
+    S -->|JSON| V[Readability 再 HTMLToNode]
+    T --> W[回傳 HTML]
+    U --> X[去重後 Markdown]
+    V --> Y[JSON 序列化]
 ```
 
-## 模組：Interactive Tabs
+## 模組：Cookie
 
-互動式分頁管理，支援建立、點擊、輸入、滾動、執行 JavaScript 與快照擷取。
+從本機 Chrome 設定檔解密 Cookie，供 SameSession 模式注入暫存瀏覽器。
 
 ```mermaid
 graph TB
-    subgraph InteractiveTabs
-        A[CreateTab] --> B[互動式 Browser]
-        B --> C[Page 建立]
-        C --> D[navigate]
-        D --> E[WaitLoad + Settle]
-        E --> F[tab 註冊]
-        F --> G[TabClick]
-        F --> H[TabType]
-        F --> I[TabScroll]
-        F --> J[TabEval]
-        F --> K[TabSnapshot]
-        F --> L[TabNavigate]
-        G --> M[page.Eval]
-        H --> M
-        I --> M
-        J --> M
-        K --> N[snapshot]
-        L --> D
+    subgraph Cookie
+        A[chromeSafeStoragePassword] --> B{平台}
+        B -->|darwin| C[security find-generic-password]
+        B -->|linux| D[secret-tool lookup]
+        C --> E[deriveChromeCookieKey PBKDF2]
+        D --> E
+        E --> F[sqlite3 讀 Cookies]
+        F --> G[decryptChromeCookie AES-CBC]
+        G --> H[NetworkCookieParam 清單]
     end
-    O[CloseTab] --> P[釋放資源]
-    P --> Q{無分頁?}
-    Q -->|Yes| R[關閉 Browser]
+    External[Chrome Profile] --> A
+    H --> Inject[Browser.SetCookies]
 ```
 
-## 模組：Content Processing
+## 模組：Markdown
 
-HTML 處理與內容轉換，包含快照合併、時間元素內聯、Markdown 轉換與去重。
+HTML 合併、時間元素內嵌、結構化節點與 Markdown 去重。
 
 ```mermaid
 graph TB
-    subgraph ContentProcessing
-        A[Merge] --> B[HTML Parse]
-        B --> C[findBody]
-        C --> D[合併 Body 子節點]
-        D --> E[HTML Render]
-        F[InlineTimeElements] --> G[收集 time 節點]
-        G --> H[替換為文字節點]
-        H --> I[HTML Render]
-        J[HTMLToMarkdown] --> K[HTML Walk]
-        K --> L[標題/段落/清單轉換]
-        L --> M[collapse]
-        N[HTMLToNode] --> O[HTML Walk]
-        O --> P[Node 樹建構]
-        P --> Q[DedupTree]
-        Q --> R[flattenChildren]
-        S[DedupMarkdownParagraphs] --> T[段落去重]
+    subgraph Markdown
+        A[Merge] --> B[解析多個 body 並附加]
+        C[InlineTimeElements] --> D[time 改為文字節點]
+        E[HTMLToNode] --> F[Node 樹]
+        F --> G[DedupTree]
+        H[HTMLToMarkdown] --> I[DedupMarkdownParagraphs]
     end
+    Snapshots[HTML 快照] --> A
+    ArticleHTML[文章 HTML] --> C
+    C --> E
+    C --> H
 ```
 
 ## 資料流
@@ -146,54 +125,43 @@ sequenceDiagram
     participant Caller
     participant Fetch
     participant Launcher
-    participant Page
-    participant Readability
+    participant Chrome
+    participant Cookie
     participant Markdown
-
-    Caller->>Fetch: Fetch(ctx, url, timeout, opt)
-    Fetch->>Fetch: prepareOpt(opt)
-    Fetch->>Fetch: parseHref(url)
-    Fetch->>Launcher: ensureBrowser / launchWithSnapshot
-    Launcher->>Page: Page(TargetCreateTarget)
-    Page->>Page: SetViewport
-    Page->>Page: EvalOnNewDocument(StealthJS)
-    Page->>Page: Navigate(url)
-    Page->>Page: WaitLoad
-    Page->>Page: WaitDOMStable
-    Page->>Page: SettleJS
-    loop ScrollCount 次
-        Page->>Page: Eval(scroll)
-        Page->>Page: WaitDOMStable
-        Page->>Page: HTML() → snapshot
+    Caller->>Fetch: Fetch(ctx, href, timeout, opt)
+    Fetch->>Fetch: prepareOpt / parseHref
+    alt SameSession
+        Fetch->>Launcher: launchWithSnapshot
+        Launcher->>Cookie: extractChromeCookies
+        Cookie-->>Launcher: cookies
+        Launcher->>Chrome: temp profile + SetCookies
+    else 一般
+        Fetch->>Launcher: ensureBrowser(headless, UA)
+        Launcher->>Chrome: 重用或新建實例
     end
-    Fetch->>Fetch: Merge(snapshots)
-    Fetch->>Fetch: InlineTimeElements
-    Fetch->>Readability: FromReader(html)
-    Readability-->>Fetch: Article
-    Fetch->>Markdown: HTMLToMarkdown
-    Markdown->>Markdown: DedupMarkdownParagraphs
+    Fetch->>Chrome: Navigate + WaitLoad
+    Fetch->>Chrome: settle + consent attempt
+    loop ScrollCount
+        Fetch->>Chrome: scroll + HTML snapshot
+    end
+    Fetch->>Markdown: Merge / Readability / HTMLToMarkdown 或 HTMLToNode
+    Markdown-->>Fetch: content
     Fetch-->>Caller: Result
 ```
 
-## 狀態機
+## 狀態機：瀏覽器快取
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Idle
-    Idle --> Launching: Fetch / CreateTab
-    Launching --> Headless: attemptHeadless=true
-    Launching --> Session: SameSession / requiresSession
-    Headless --> Navigating
-    Session --> Navigating
-    Navigating --> Scrolling: WaitLoad + Settle
-    Scrolling --> Extracting: ScrollCount 完成
-    Extracting --> Done: Markdown / HTML / JSON
-    Done --> [*]
-    Navigating --> Retry: 403 / 429 / 503
-    Retry --> Session: hasDisplay
-    Retry --> Done: 無法重試
+    [*] --> Empty
+    Empty --> Active: ensureBrowser 建立
+    Active --> Active: 相同 headless+UA 重用
+    Active --> Evicted: idle > 5 分鐘
+    Evicted --> Empty: Close 並自 map 刪除
+    Active --> Closed: Close()
+    Closed --> [*]
 ```
 
 ***
 
-©️ 2025 [邱敬幃 Pardn Chiu](https://linkedin.com/in/pardnchiu)
+©️ 2026 [邱敬幃 Pardn Chiu](https://www.linkedin.com/in/pardnchiu)
