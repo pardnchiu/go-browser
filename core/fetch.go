@@ -30,6 +30,9 @@ var defaultStealthJS string
 //go:embed embed/listener.js
 var defaultListenerJS string
 
+//go:embed embed/consent.js
+var defaultConsentJS string
+
 type Viewport struct {
 	Width             int
 	Height            int
@@ -63,6 +66,7 @@ type Result struct {
 	PublishedAt string
 	Excerpt     string
 	Status      int
+	Consent     string  `json:",omitempty"`
 	Tree        []*Node `json:",omitempty"`
 }
 
@@ -88,6 +92,30 @@ func settle(ctx context.Context, page *gorod.Page, idleWait time.Duration) {
 	settleCtx, cancel := context.WithTimeout(ctx, idleWait)
 	defer cancel()
 	_ = page.Context(settleCtx).WaitDOMStable(window, 0.01)
+}
+
+const consentMaxPasses = 2
+
+func handleConsent(ctx context.Context, page *gorod.Page, idleWait time.Duration) string {
+	applied := make([]string, 0, consentMaxPasses)
+	for range consentMaxPasses {
+		evalCtx, cancel := context.WithTimeout(ctx, idleWait)
+		v, err := page.Context(evalCtx).Eval(defaultConsentJS)
+		cancel()
+		if err != nil {
+			break
+		}
+		strategy := v.Value.Str()
+		if strategy == "" || strategy == "none" || strategy == "skipped" {
+			if len(applied) == 0 {
+				return strategy
+			}
+			break
+		}
+		applied = append(applied, strategy)
+		settle(ctx, page, idleWait)
+	}
+	return strings.Join(applied, ",")
 }
 
 func isScrollable(page *gorod.Page) bool {
@@ -340,6 +368,8 @@ func load(ctx context.Context, b *gorod.Browser, href string, parsed *url.URL, t
 		settleCancel()
 	}
 
+	consent := handleConsent(ctx, page, opt.IdleWait)
+
 	initial, err := page.HTML()
 	if err != nil {
 		return nil, fmt.Errorf("page.HTML: %w", err)
@@ -380,6 +410,7 @@ scrollLoop:
 			FinalURL: finalURL,
 			Content:  htmlSrc,
 			Status:   status,
+			Consent:  consent,
 		}, nil
 	}
 
@@ -442,6 +473,7 @@ scrollLoop:
 		Author:   article.Byline,
 		Excerpt:  article.Excerpt,
 		Status:   status,
+		Consent:  consent,
 	}
 	if article.PublishedTime != nil {
 		result.PublishedAt = article.PublishedTime.Format(time.RFC3339)
@@ -463,6 +495,7 @@ scrollLoop:
 			FinalURL: finalURL,
 			Content:  string(b),
 			Status:   status,
+			Consent:  consent,
 		}, nil
 	}
 	return result, nil
