@@ -1,163 +1,151 @@
 # go-browser - Architecture
 
+Last updated: 2026-10-06
+
 > Back to [README](../README.md)
 
 ## Overview
 
 ```mermaid
 graph TB
-    A[Fetch / CreateTab] --> B[Launcher]
-    B --> C{Headless?}
-    C -->|Yes| D[Stealth JS]
-    C -->|No| E[Cookie Session]
-    D --> F[Page Navigate + Scroll]
+    A[Fetch] --> B{Route}
+    B -->|Headless forced| C[headless]
+    B -->|Social domain + display| D[headed]
+    B -->|Default| E[headless first]
+    E -->|403/429/503 + display| D
+    C --> F{SameSession?}
+    D --> F
     E --> F
-    F --> G[Snapshot Merge]
-    G --> H[Readability + Dedup]
-    H --> I[Markdown / HTML / JSON]
+    F -->|Yes| G[Cookie temp-profile browser]
+    F -->|No or profile missing| H[Cached browser]
+    G --> I[load pipeline]
+    H --> I
+    I --> J[Markdown / HTML / JSON]
 ```
 
 ## Module: Launcher
 
-Manages Chrome browser lifecycle — singleton headless instance with idle eviction, or temporary profile-snapshot instances with cookie injection.
+Manages the Chrome lifecycle: caches reusable instances by headless mode and User-Agent, or launches a single-use temp-profile instance with injected cookies.
 
 ```mermaid
 graph TB
     subgraph Launcher
-        A[ensureBrowser] --> B{Browser exists?}
-        B -->|Yes| C[Reuse singleton]
+        A[ensureBrowser] --> B{browserKey cached?}
+        B -->|Yes| C[Update lastUsed and reuse]
         B -->|No| D[launcher.New]
-        D --> E[Set flags: headless, no-sandbox, user-agent]
+        D --> E[headless, UA, anti-automation flags]
         E --> F[chromePath lookup]
-        F --> G[Launch + Connect]
-        G --> H[Store as singleton]
-        H --> I[Start evictor goroutine]
-        C --> J[Return browser]
-        I --> J
+        F --> G[Launch and Connect]
+        G --> H[Store in browsers map]
+        I[startEvictor] --> J{Idle > 5 min?}
+        J -->|Yes| K[Close and delete from map]
+        L[launchWithSnapshot] --> M{Profile exists?}
+        M -->|No| N[ErrProfileNotFound]
+        M -->|Yes| O[Copy Cookies to temp dir]
+        O --> P[extractChromeCookies]
+        P --> Q[Launch Chrome with temp dir]
+        Q --> R[SetCookies, per-cookie retry on batch failure]
+        R --> S[Return browser and cleanup]
     end
-    K[launchWithSnapshot] --> L[Copy Chrome profile cookies]
-    L --> M[Decrypt cookies via OS keychain]
-    M --> N[Launch temp browser with cookies]
-    N --> O[SetCookies on browser]
-    O --> P[Return browser + cleanup]
+    A -.-> I
 ```
 
 ## Module: Fetch
 
-Core content extraction pipeline — navigates to a URL, simulates scrolling, captures multiple snapshots, and produces Markdown/HTML/JSON output.
+Routes between headless and headed, then runs navigation, settling, consent handling, multi-snapshot capture, and format conversion.
 
 ```mermaid
 graph TB
     subgraph Fetch
-        A[parseHref] --> B{requiresSession?}
-        B -->|Yes| C[fetchWith: SameSession]
-        B -->|No| D{Headless?}
-        D -->|Yes| E[fetchWith: headless]
-        D -->|No| F[fetchWith: headed first]
-        F --> G{needsRetry?}
-        G -->|Yes| H[fetchWith: headed fallback]
-        G -->|No| I[Return result]
-        E --> I
-        C --> I
+        A[prepareOpt] --> B[parseHref]
+        B --> C{opt.Headless?}
+        C -->|Yes| D[fetchWith headless]
+        C -->|No| E{requiresSession and hasDisplay?}
+        E -->|Yes| F[fetchWith headed]
+        E -->|No| G[fetchWith headless]
+        G --> H{isBlocked and hasDisplay?}
+        H -->|Yes| F
+        H -->|No| I[Return result]
+        D --> I
+        F --> I
     end
-    J[load] --> K[Page create + SetViewport]
-    K --> L[StealthJS: EvalOnNewDocument]
-    L --> M[Navigate + WaitLoad]
-    M --> N[Check final URL for 404/403]
-    N --> O[WaitDOMStable + SettleJS]
-    O --> P[Capture initial snapshot]
-    P --> Q[Scroll loop: random delay + scroll]
-    Q --> R[Capture snapshots per scroll]
-    R --> S{Type?}
-    S -->|HTML| T[Merge snapshots → InlineTimeElements]
-    S -->|Markdown| U[Per-snapshot: readability → merge content]
-    S -->|JSON| V[Per-snapshot: readability → HTMLToNode]
-    T --> W[Return HTML]
-    U --> X[HTMLToMarkdown → DedupParagraphs]
-    V --> Y[JSON marshal]
-    X --> Z[Return Markdown]
-    Y --> AA[Return JSON]
+    subgraph fetchWith
+        J{SameSession?} -->|Yes| K[launchWithSnapshot]
+        K -->|ErrProfileNotFound| L[ensureBrowser]
+        J -->|No| L
+        K --> M[load]
+        L --> M
+    end
+    D -.-> J
+    F -.-> J
+    G -.-> J
 ```
 
-## Module: Interactive Tabs
-
-Stateful tab management for multi-step browser interactions — click, type, scroll, eval, and snapshot.
+## Module: load Pipeline
 
 ```mermaid
 graph TB
-    subgraph InteractiveTabs
-        A[CreateTab] --> B{Interactive browser exists?}
-        B -->|No| C[Launch browser: SameSession or headless]
-        B -->|Yes| D[Reuse browser]
-        C --> E[Create page + SetViewport + StealthJS]
+    subgraph load
+        A[acquireSem] --> B[New page + Viewport]
+        B --> C[StealthJS EvalOnNewDocument]
+        C --> D[Navigate + WaitLoad]
+        D --> E{Final URL has 403/404?}
+        E -->|Yes| X[Error]
+        E -->|No| F{Content-Type JSON/XML?}
+        F -->|Yes| Y[Return raw body]
+        F -->|No| G[settle + SettleJS]
+        G --> H[handleConsent up to 2 passes]
+        H --> I[Initial snapshot]
+        I --> J[Scroll loop ScrollCount times]
+        J --> K{Type}
+        K -->|HTML| L[Merge + InlineTimeElements]
+        K -->|Markdown/JSON| M[Readability per snapshot]
+        M --> N{Challenge page title?}
+        N -->|Yes| X
+        N -->|No| O[HTMLToMarkdown + paragraph dedup]
+        O --> P{Type JSON?}
+        P -->|Yes| Q[HTMLToNode and serialize]
+        P -->|No| R[MaxLength truncate]
+    end
+```
+
+## Module: Cookie
+
+Decrypts cookies from the local Chrome profile for SameSession injection; supports darwin and linux only.
+
+```mermaid
+graph TB
+    subgraph Cookie
+        A[chromeSafeStoragePassword] --> B{Platform}
+        B -->|darwin| C[security find-generic-password]
+        B -->|linux| D[secret-tool lookup chrome / chromium]
+        C --> E[PBKDF2-SHA1 key derivation]
         D --> E
-        E --> F[navigate: Navigate + WaitLoad + Settle]
-        F --> G[Store tab in map]
-        G --> H[Return tabID]
+        E --> F[sqlite3 query cookies table]
+        F --> G[v10-prefixed AES-CBC decrypt]
+        G --> H[NetworkCookieParam list]
     end
-    I[TabClick] --> J[Eval: querySelector.click]
-    K[TabType] --> L[Eval: focus + set value + dispatch events]
-    M[TabScroll] --> N[Eval: scrollTo + random delay loop]
-    O[TabEval] --> P[Eval: custom JS]
-    Q[TabSnapshot] --> R[HTML → InlineTimeElements → readability → Markdown]
-    S[CloseTab] --> T[Close page + release sem]
-    T --> U{No tabs left?}
-    U -->|Yes| V[Close interactive browser]
-    U -->|No| W[Keep browser alive]
+    Profile[Chrome Profile Cookies] --> F
+    Other[Other platforms] --> Unsupported[Unsupported error]
 ```
 
-## Module: Cookie Extraction
+## Module: Markdown
 
-Cross-platform Chrome cookie decryption — extracts cookies from the local Chrome profile SQLite database and decrypts them using OS keychain credentials.
+Merges HTML snapshots, inlines time elements, converts to a node tree, and deduplicates.
 
 ```mermaid
 graph TB
-    subgraph CookieExtraction
-        A[extractChromeCookies] --> B[chromeSafeStoragePassword]
-        B --> C{OS?}
-        C -->|macOS| D[security find-generic-password]
-        C -->|Linux| E[secret-tool lookup]
-        D --> F[Derive key: PBKDF2-SHA1]
-        E --> F
-        F --> G[sqlite3: SELECT cookies]
-        G --> H{encrypted_value?}
-        H -->|Yes| I[AES-CBC decrypt: v10 prefix]
-        H -->|No| J[Use plaintext value]
-        I --> K[Strip padding + prefix]
-        J --> L[Build NetworkCookieParam]
-        K --> L
-        L --> M[Return cookies]
+    subgraph Markdown
+        A[Merge] --> B[Append later snapshot bodies to the first]
+        C[InlineTimeElements] --> D[time datetime to text]
+        E[HTMLToNode] --> F[Node tree]
+        F --> G[DedupTree]
+        H[HTMLToMarkdown] --> I[DedupMarkdownParagraphs]
     end
-```
-
-## Module: Content Processing
-
-HTML processing pipeline — snapshot merging, time element inlining, readability extraction, Markdown conversion, and deduplication.
-
-```mermaid
-graph TB
-    subgraph ContentProcessing
-        A[Merge] --> B[Parse first snapshot as base]
-        B --> C[For each subsequent snapshot]
-        C --> D[Extract body children]
-        D --> E[Append to base body]
-        E --> F[Render merged HTML]
-        G[InlineTimeElements] --> H[Find time nodes]
-        H --> I[Extract datetime attr + inner text]
-        I --> J[Replace with text node]
-        J --> K[Handle anchor-wrapped times]
-        K --> L[Render HTML]
-        M[HTMLToMarkdown] --> N[Walk HTML tree]
-        N --> O[Map tags to Markdown syntax]
-        O --> P[collapse whitespace]
-        Q[DedupMarkdownParagraphs] --> R[Split by paragraphs]
-        R --> S[Hash each paragraph]
-        S --> T[Skip duplicates]
-        T --> U[Join unique paragraphs]
-        V[HTMLToNode] --> W[Walk HTML tree → Node tree]
-        W --> X[DedupTree: hash-based dedup]
-        X --> Y[flattenChildren: unwrap single-child nodes]
-    end
+    Snapshots[HTML snapshots] --> A
+    Snapshots --> C
+    Article[Readability article HTML] --> E
+    Article --> H
 ```
 
 ## Data Flow
@@ -167,35 +155,44 @@ sequenceDiagram
     participant Caller
     participant Fetch
     participant Launcher
-    participant Page
-    participant Readability
+    participant Cookie
+    participant Chrome
     participant Markdown
-
-    Caller->>Fetch: Fetch(ctx, url, timeout, opt)
-    Fetch->>Fetch: parseHref + prepareOpt
-    Fetch->>Launcher: ensureBrowser / launchWithSnapshot
-    Launcher->>Launcher: Launch Chrome + connect
-    Launcher-->>Fetch: *Browser
-    Fetch->>Page: Page create + SetViewport
-    Fetch->>Page: EvalOnNewDocument(stealthJS)
-    Fetch->>Page: Navigate(url) + WaitLoad
-    Fetch->>Page: Check final URL for 404/403
-    Fetch->>Page: WaitDOMStable + SettleJS
-    Fetch->>Page: HTML() → initial snapshot
-    loop ScrollCount times
-        Fetch->>Page: Eval(smooth scroll)
-        Fetch->>Page: WaitDOMStable
-        Fetch->>Page: HTML() → snapshot
+    Caller->>Fetch: Fetch(ctx, href, timeout, opt)
+    Fetch->>Fetch: prepareOpt / parseHref / route
+    alt SameSession with existing profile
+        Fetch->>Launcher: launchWithSnapshot
+        Launcher->>Cookie: extractChromeCookies
+        Cookie-->>Launcher: cookies
+        Launcher->>Chrome: temp profile + SetCookies
+    else Otherwise
+        Fetch->>Launcher: ensureBrowser(UA, headless)
+        Launcher->>Chrome: reuse or launch instance
     end
-    Fetch->>Readability: FromReader(per-snapshot HTML)
-    Readability-->>Fetch: Article (Title, Content, Byline)
-    Fetch->>Markdown: HTMLToMarkdown(merged content)
-    Markdown-->>Fetch: Markdown string
-    Fetch->>Markdown: DedupMarkdownParagraphs
-    Markdown-->>Fetch: Deduped Markdown
-    Fetch-->>Caller: *Result{Content, Title, ...}
+    Fetch->>Chrome: Navigate + WaitLoad
+    Fetch->>Chrome: settle + SettleJS + consent
+    loop Up to ScrollCount times
+        Fetch->>Chrome: scroll + HTML snapshot
+    end
+    Fetch->>Markdown: Merge / Readability / HTMLToMarkdown / HTMLToNode
+    Markdown-->>Fetch: content
+    opt Headless blocked with display
+        Fetch->>Launcher: headed retry
+    end
+    Fetch-->>Caller: Result or Error
+```
+
+## State Machine: Cached Browser
+
+```mermaid
+stateDiagram-v2
+    [*] --> Absent
+    Absent --> Active: ensureBrowser launches
+    Active --> Active: reuse for same headless + UA
+    Active --> Absent: evictor closes after 5 min idle
+    Active --> Absent: Close()
 ```
 
 ***
 
-©️ 2025 [邱敬幃 Pardn Chiu](https://linkedin.com/in/pardnchiu)
+©️ 2026 [邱敬幃 Pardn Chiu](https://www.linkedin.com/in/pardnchiu)
