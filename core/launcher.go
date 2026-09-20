@@ -272,19 +272,6 @@ func copyFileIfExists(src, dst string) error {
 }
 
 func Close() {
-	interactiveMu.Lock()
-	for id, t := range tabs {
-		_ = t.page.Close()
-		t.release()
-		delete(tabs, id)
-	}
-	if interactiveCleanup != nil {
-		interactiveCleanup()
-		interactiveCleanup = nil
-	}
-	interactiveBrowser = nil
-	interactiveMu.Unlock()
-
 	mu.Lock()
 	defer mu.Unlock()
 	if browser != nil {
