@@ -30,9 +30,14 @@ const (
 	browserIdleCheck = 1 * time.Minute
 )
 
+type browserKey struct {
+	headless  bool
+	userAgent string
+}
+
 var (
 	mu        sync.Mutex
-	browser   *Browser
+	browsers  = map[browserKey]*Browser{}
 	fetchSem  = make(chan struct{}, 8)
 	evictOnce sync.Once
 )
@@ -44,9 +49,11 @@ func startEvictor() {
 			defer t.Stop()
 			for range t.C {
 				mu.Lock()
-				if browser != nil && time.Since(browser.lastUsed) > browserIdleTTL {
-					_ = browser.browser.Close()
-					browser = nil
+				for key, b := range browsers {
+					if time.Since(b.lastUsed) > browserIdleTTL {
+						_ = b.browser.Close()
+						delete(browsers, key)
+					}
 				}
 				mu.Unlock()
 			}
@@ -79,16 +86,17 @@ func acquireSem(ctx context.Context) (func(), error) {
 }
 
 func ensureBrowser(userAgent string, headless bool) (*goRod.Browser, error) {
+	if userAgent == "" {
+		userAgent = DefaultUserAgent
+	}
+	key := browserKey{headless: headless, userAgent: userAgent}
+
 	mu.Lock()
 	defer mu.Unlock()
 	startEvictor()
-	if browser != nil {
-		browser.lastUsed = time.Now()
-		return browser.browser, nil
-	}
-
-	if userAgent == "" {
-		userAgent = DefaultUserAgent
+	if cached, ok := browsers[key]; ok {
+		cached.lastUsed = time.Now()
+		return cached.browser, nil
 	}
 
 	l := launcher.New().
@@ -116,7 +124,7 @@ func ensureBrowser(userAgent string, headless bool) (*goRod.Browser, error) {
 	if err := b.Connect(); err != nil {
 		return nil, fmt.Errorf("browser.Connect: %w", err)
 	}
-	browser = &Browser{browser: b, lastUsed: time.Now()}
+	browsers[key] = &Browser{browser: b, lastUsed: time.Now()}
 	return b, nil
 }
 
@@ -274,10 +282,10 @@ func copyFileIfExists(src, dst string) error {
 func Close() {
 	mu.Lock()
 	defer mu.Unlock()
-	if browser != nil {
-		_ = browser.browser.Close()
-		browser = nil
+	for _, b := range browsers {
+		_ = b.browser.Close()
 	}
+	clear(browsers)
 }
 
 func hasDisplay() bool {

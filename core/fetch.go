@@ -147,7 +147,13 @@ func Fetch(ctx context.Context, href string, timeout time.Duration, opt *Option)
 		return nil, err
 	}
 
-	if o.Headless || requiresSession(parsed.Hostname()) {
+	if o.Headless {
+		forced := *o
+		forced.attemptHeadless = true
+		return fetchWith(ctx, href, parsed, timeout, &forced)
+	}
+
+	if requiresSession(parsed.Hostname()) && hasDisplay() {
 		forced := *o
 		forced.attemptHeadless = false
 		return fetchWith(ctx, href, parsed, timeout, &forced)
@@ -156,10 +162,7 @@ func Fetch(ctx context.Context, href string, timeout time.Duration, opt *Option)
 	first := *o
 	first.attemptHeadless = true
 	result, err := fetchWith(ctx, href, parsed, timeout, &first)
-	if !needsRetry(result, err) {
-		return result, err
-	}
-	if !hasDisplay() {
+	if !isBlocked(result, err) || !hasDisplay() {
 		return result, err
 	}
 	fallback := *o
@@ -186,26 +189,23 @@ func requiresSession(host string) bool {
 	return false
 }
 
-func needsRetry(result *Result, err error) bool {
-	if err != nil {
-		return shouldRetry(err)
+func isBlocked(result *Result, err error) bool {
+	status := 0
+	switch {
+	case err != nil:
+		var e *Error
+		if !errors.As(err, &e) {
+			return false
+		}
+		status = e.Status
+	case result != nil:
+		status = result.Status
 	}
-	switch result.Status {
+	switch status {
 	case 403, 429, 503:
 		return true
 	}
 	return false
-}
-
-func shouldRetry(err error) bool {
-	var e *Error
-	if errors.As(err, &e) {
-		switch e.Status {
-		case 204, 403, 429, 503:
-			return true
-		}
-	}
-	return strings.Contains(err.Error(), "no article extracted")
 }
 
 func fetchWith(ctx context.Context, href string, parsed *url.URL, timeout time.Duration, opt *Option) (*Result, error) {
