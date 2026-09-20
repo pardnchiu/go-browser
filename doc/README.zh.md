@@ -4,18 +4,19 @@
 ***
 
 <p align="center">
-<strong>HEADLESS BROWSER AUTOMATION FOR GO — STEALTH, SESSIONS, AND SMART CONTENT EXTRACTION</strong>
+<strong>EXTRACT WEB CONTENT VIA CHROME — MARKDOWN OR HTML, READY FOR AGENTS</strong>
 </p>
 
 <p align="center">
 <a href="https://pkg.go.dev/github.com/pardnchiu/go-browser"><img src="https://img.shields.io/badge/GO-REFERENCE-blue?include_prereleases&style=for-the-badge" alt="Go Reference"></a>
 <a href="https://github.com/pardnchiu/go-browser/releases"><img src="https://img.shields.io/github/v/tag/pardnchiu/go-browser?include_prereleases&style=for-the-badge" alt="Release"></a>
-<a href="../LICENSE"><img src="https://img.shields.io/github/license/pardnchiu/go-browser?include_prereleases&style=for-the-badge" alt="License"></a>
+<a href="LICENSE"><img src="https://img.shields.io/github/license/pardnchiu/go-browser?include_prereleases&style=for-the-badge" alt="License"></a>
+<a href="https://app.codecov.io/github/pardnchiu/go-browser/tree/master"><img src="https://img.shields.io/codecov/c/github/pardnchiu/go-browser/master?include_prereleases&style=for-the-badge" alt="Coverage"></a>
 </p>
 
 ***
 
-> Go 函式庫，具備反偵測隱匿模式、Chrome Cookie 會話注入與多頁面快照合併提取
+> Go 函式庫，透過 Chrome 萃取網頁內容，可選 Markdown／HTML，並支援 Cookie 工作階段
 
 ## 目錄
 
@@ -28,11 +29,11 @@
 
 > `go get github.com/pardnchiu/go-browser` · [完整文件](./doc.zh.md)
 
-- **反偵測隱匿模式** — 內建 stealth.js 注入與 AutomationControlled 偵測繞過，降低被 Cloudflare 等防護攔截的機率。
-- **Chrome Cookie 會話注入** — 從本機 Chrome 設定檔提取並解密 Cookie，自動注入至臨時瀏覽器實例以存取需登入的頁面。
-- **多頁面快照合併** — 模擬滾動瀏覽行為，多次截取頁面快照後合併去重，完整提取動態載入內容。
-- **互動式分頁操作** — 支援建立分頁、點擊、輸入文字、滾動、執行 JavaScript 與快照擷取，適用於表單填寫與多步驟工作流程。
-- **多格式內容輸出** — 一次請求可取得 Markdown、HTML 或結構化 JSON 樹，內建 readability 解析與段落去重。
+- **Chrome 內容萃取** — 以本機 Chrome／Chromium 開啟頁面，輸出可選 Markdown 或 HTML，完整 CDP 工作流請改用 Playwright MCP。
+- **多快照合併** — 模擬捲動並擷取多份快照，合併後去重，補齊動態載入內容。
+- **Chrome Cookie 工作階段** — 從本機 Chrome 設定檔解密並注入 Cookie，讀取需登入的頁面。
+- **嘗試關閉 Cookie 橫幅** — 載入後自動嘗試關閉同意橫幅，不保證所有網站皆可成功。
+- **Headless／UA 隔離** — 依 headless 與 User-Agent 隔離瀏覽器，僅在 403／429／503 被擋時改用 headed。
 
 ## 架構
 
@@ -40,15 +41,12 @@
 
 ```mermaid
 graph TB
-    A[Fetch / CreateTab] --> B[Launcher]
-    B --> C{Headless?}
-    C -->|Yes| D[Stealth JS]
-    C -->|No| E[Cookie Session]
-    D --> F[Page Navigate + Scroll]
-    E --> F
-    F --> G[Snapshot Merge]
-    G --> H[Readability + Dedup]
-    H --> I[Markdown / HTML / JSON]
+    A[Fetch] --> B[Launcher]
+    B --> C{Headless 或 Session}
+    C --> D[Navigate + Consent]
+    D --> E[Scroll + Snapshots]
+    E --> F[Merge + Readability]
+    F --> G[Markdown / HTML / JSON]
 ```
 
 ## 授權
@@ -57,13 +55,12 @@ graph TB
 
 ## Author
 
-<img src="https://github.com/pardnchiu.png" align="left" width="96" height="96" style="margin-right: 0.5rem;">
+有想法就直接 [開 issue](https://github.com/pardnchiu/go-browser/issues/new)。
 
-<h4 style="padding-top: 0">邱敬幃 Pardn Chiu</h4>
+<a href="https://github.com/pardnchiu/go-browser/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=pardnchiu/go-browser&cache_bust=2026-09-20" alt="go-browser contributors" />
+</a>
 
-<a href="mailto:hi@pardn.dev">hi@pardn.dev</a><br>
-<a href="https://linkedin.com/in/pardnchiu">https://linkedin.com/in/pardnchiu</a>
+---
 
-***
-
-©️ 2025 [邱敬幃 Pardn Chiu](https://linkedin.com/in/pardnchiu)
+©️ 2026 [邱敬幃 Pardn Chiu](https://www.linkedin.com/in/pardnchiu)

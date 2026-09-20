@@ -1,4 +1,4 @@
-package goBrowser
+package browser
 
 import (
 	"fmt"

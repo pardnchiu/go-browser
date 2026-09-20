@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package goBrowser
+package browser
 
 import (
 	"bytes"
