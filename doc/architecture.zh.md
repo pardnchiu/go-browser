@@ -107,6 +107,21 @@ graph TB
         P -->|是| Q[HTMLToNode 並序列化]
         P -->|否| R[MaxLength 截斷]
     end
+    J[load] --> K[建立 Page 與 Viewport]
+    K --> L[StealthJS EvalOnNewDocument]
+    L --> M[Navigate 與 WaitLoad]
+    M --> N[檢查最終 URL 與狀態]
+    N --> O[WaitDOMStable 與 SettleJS]
+    O --> P[handleConsent]
+    P --> Q[初始 HTML 快照]
+    Q --> R[捲動迴圈與多快照]
+    R --> S{Type?}
+    S -->|HTML| T[Merge 與 InlineTime]
+    S -->|Markdown| U[Readability 合併再轉 Markdown]
+    S -->|JSON| V[Readability 再 HTMLToNode]
+    T --> W[回傳 HTML]
+    U --> X[去重後 Markdown]
+    V --> Y[JSON 序列化]
 ```
 
 ## 模組：Cookie

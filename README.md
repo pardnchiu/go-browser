@@ -13,6 +13,7 @@ Last updated: 2026-10-06
 <a href="https://pkg.go.dev/github.com/pardnchiu/go-browser"><img src="https://img.shields.io/badge/GO-REFERENCE-blue?include_prereleases&style=for-the-badge" alt="Go Reference"></a>
 <a href="https://github.com/pardnchiu/go-browser/releases"><img src="https://img.shields.io/github/v/tag/pardnchiu/go-browser?include_prereleases&style=for-the-badge" alt="Release"></a>
 <a href="LICENSE"><img src="https://img.shields.io/github/license/pardnchiu/go-browser?include_prereleases&style=for-the-badge" alt="License"></a>
+<a href="https://app.codecov.io/github/pardnchiu/go-browser/tree/master"><img src="https://img.shields.io/codecov/c/github/pardnchiu/go-browser/master?include_prereleases&style=for-the-badge" alt="Coverage"></a>
 </p>
 
 ***
