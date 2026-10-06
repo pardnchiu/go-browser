@@ -1,18 +1,27 @@
 # go-browser - 技術文件
 
+最後更新：2026-10-06
+
 > 返回 [README](./README.zh.md)
 
 ## 前置需求
 
 - Go 1.25 或更高版本
 - Google Chrome 或 Chromium（macOS 或 Linux）
-- macOS：Chrome 安裝於 `/Applications/Google Chrome.app/`
+- macOS：Chrome 位於 `/Applications/Google Chrome.app/` 或 `/Applications/Chromium.app/`
 - Linux：`PATH` 中可找到 `google-chrome`、`google-chrome-stable`、`chromium` 或 `chromium-browser`
-- `sqlite3` 命令列工具（Cookie 擷取用）
-- macOS：內建 `security` 工具（讀取 Chrome Safe Storage 密碼）
-- Linux：`secret-tool`（需 `libsecret-tools`，讀取 Chrome Safe Storage 密碼）
+- 使用 `SameSession` 時：
+  - `sqlite3` 命令列工具（讀取 Cookies 資料庫）
+  - macOS：內建 `security` 工具（讀取 Chrome Safe Storage 密碼）
+  - Linux：`secret-tool`（`libsecret-tools`，讀取 Chrome Safe Storage 密碼）
 
 ## 安裝
+
+### 使用 go get
+
+```bash
+go get github.com/pardnchiu/go-browser/core
+```
 
 ### 從原始碼
 
@@ -22,31 +31,27 @@ cd go-browser
 go build ./...
 ```
 
-### 使用 go get
-
-```bash
-go get github.com/pardnchiu/go-browser
-```
-
 ## 設定
 
 ### 環境變數
 
 | 變數 | 必要 | 說明 |
 |------|------|------|
-| `DISPLAY` | 否 | Linux 上設定後可走 X11 headed 模式 |
-| `WAYLAND_DISPLAY` | 否 | Linux 上設定後可走 Wayland headed 模式 |
+| `DISPLAY` | 否 | Linux 上存在時視為有顯示器，允許 headed 重試（X11） |
+| `WAYLAND_DISPLAY` | 否 | Linux 上存在時視為有顯示器，允許 headed 重試（Wayland） |
+
+macOS 一律視為有顯示器。Linux 兩者皆未設定時，不做 headed 重試，直接回傳 headless 結果。
 
 ### Chrome Profile
 
-函式庫會自動偵測 Chrome profile 路徑：
+`SameSession` 從下列路徑讀取 Chrome profile：
 
 | 平台 | 路徑 |
 |------|------|
-| macOS | `~/Library/Application Support/Google/Chrome` |
-| Linux | `~/.config/google-chrome` |
+| macOS | `~/Library/Application Support/Google/Chrome/<Profile>` |
+| Linux | `~/.config/google-chrome/<Profile>` |
 
-預設 profile 名稱為 `Default`。若要改用其他 profile，透過 `Option.Profile` 指定。
+`<Profile>` 預設為 `Default`，可由 `Option.Profile` 指定。找不到 profile 時自動退回一般快取瀏覽器，不回傳錯誤。
 
 ## 使用方式
 
@@ -58,72 +63,104 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
-	browser "github.com/pardnchiu/go-browser"
+	browser "github.com/pardnchiu/go-browser/core"
 )
 
 func main() {
-	ctx := context.Background()
-	result, err := browser.Fetch(ctx, "https://example.com", 30*time.Second, &browser.Option{
-		Type:        browser.TypeMarkdown,
-		Headless:    true,
-		ScrollCount: 3,
-	})
+	defer browser.Close()
+
+	result, err := browser.Fetch(context.Background(), "https://example.com", 30*time.Second, nil)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	fmt.Println(result.Title)
 	fmt.Println(result.Content)
-	// Consent 可能為 none / skipped / 策略名稱；僅表示有嘗試關閉橫幅
-	fmt.Println(result.Consent)
 }
 ```
+
+`opt` 為 `nil` 時套用全部預設值：Markdown 輸出、headless 優先、捲動 3 次。
+
+### 處理 HTTP 錯誤
+
+```go
+result, err := browser.Fetch(ctx, href, 30*time.Second, nil)
+if err != nil {
+	var httpErr *browser.Error
+	if errors.As(err, &httpErr) {
+		// 403：被擋或 Cloudflare 驗證頁；204：未萃取到內容
+		log.Printf("status %d: %s", httpErr.Status, httpErr.Href)
+		return
+	}
+	log.Fatal(err)
+}
+fmt.Println(result.Status, result.FinalURL)
+```
+
+### 輸出格式
+
+```go
+// Markdown（預設），受 MaxLength 截斷
+md, err := browser.Fetch(ctx, href, timeout, &browser.Option{Type: browser.TypeMarkdown})
+if err != nil {
+	log.Fatal(err)
+}
+
+// HTML：合併所有捲動快照並內嵌 <time>
+html, err := browser.Fetch(ctx, href, timeout, &browser.Option{Type: browser.TypeHTML})
+if err != nil {
+	log.Fatal(err)
+}
+
+// JSON：Content 為序列化後的 Result，含 Tree 結構樹
+tree, err := browser.Fetch(ctx, href, timeout, &browser.Option{Type: browser.TypeJSON})
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Println(len(md.Content), len(html.Content), len(tree.Content))
+```
+
+回應 Content-Type 含 `json` 或 `xml` 時，不論 `Type` 皆原樣回傳內容，並填入 `ContentType`。
 
 ### 進階：以 Cookie Session 讀取需登入頁面
 
 ```go
-result, err := browser.Fetch(ctx, "https://login-required-site.com", 60*time.Second, &browser.Option{
-	Type:        browser.TypeMarkdown,
+result, err := browser.Fetch(ctx, "https://example.com/dashboard", 60*time.Second, &browser.Option{
 	SameSession: true,
 	Profile:     "Default",
 	ScrollCount: 5,
 	KeepLinks:   true,
 })
 if err != nil {
-	panic(err)
+	log.Fatal(err)
 }
+fmt.Println(result.Content)
 ```
 
-`SameSession: true` 會從本機 Chrome profile 複製並解密 Cookies，注入臨時瀏覽器後再導覽。完整 CDP 互動（點擊、填表、多步工作流）不在本函式庫範圍內，請改用 Playwright MCP。
+`SameSession: true` 會把 profile 的 Cookies 檔複製到暫存目錄、解密後注入一個用完即關的瀏覽器。點擊、填表等多步互動不在本函式庫範圍內，請改用 Playwright MCP。
 
-### 輸出格式
+### 進階：檢視 Cookie 橫幅處理結果
 
 ```go
-// Markdown（預設）
-result, err := browser.Fetch(ctx, url, timeout, &browser.Option{Type: browser.TypeMarkdown})
+result, err := browser.Fetch(ctx, href, 30*time.Second, nil)
 if err != nil {
-	panic(err)
+	log.Fatal(err)
 }
-
-// HTML（合併捲動快照）
-result, err = browser.Fetch(ctx, url, timeout, &browser.Option{Type: browser.TypeHTML})
-if err != nil {
-	panic(err)
-}
-
-// JSON 結構樹
-result, err = browser.Fetch(ctx, url, timeout, &browser.Option{Type: browser.TypeJSON})
-if err != nil {
-	panic(err)
+switch result.Consent {
+case "", "none", "skipped":
+	fmt.Println("未關閉任何橫幅")
+default:
+	fmt.Println("已套用策略：", result.Consent)
 }
 ```
 
 ### 併發與關閉
 
 ```go
-browser.SetMaxConcurrency(4) // 預設 8
-defer browser.Close()        // 關閉所有快取中的瀏覽器實例
+browser.SetMaxConcurrency(4)
+defer browser.Close()
 ```
 
 ## API 參考
@@ -134,7 +171,15 @@ defer browser.Close()        // 關閉所有快取中的瀏覽器實例
 func Fetch(ctx context.Context, href string, timeout time.Duration, opt *Option) (*Result, error)
 ```
 
-以 Chrome 擷取指定 URL 內容。預設先嘗試 headless；若回傳 403/429/503 且環境有顯示器，才改 headed 重試。特定需 session 的網域會優先走 Cookie 路徑。
+以 Chrome 擷取指定 URL。`timeout <= 0` 時僅受 `ctx` 控制。`href` 需含 scheme 且主機名含 `.`，否則回傳 `invalid url`。
+
+路由順序：
+
+| 條件 | 行為 |
+|------|------|
+| `Option.Headless == true` | 僅 headless，不重試 |
+| 網域屬於內建社群清單（`facebook.com`、`x.com`、`linkedin.com` 等）且有顯示器 | 直接 headed |
+| 其他 | 先 headless；回傳 403／429／503 且有顯示器時改 headed 重試 |
 
 ### SetMaxConcurrency
 
@@ -142,7 +187,7 @@ func Fetch(ctx context.Context, href string, timeout time.Duration, opt *Option)
 func SetMaxConcurrency(n int)
 ```
 
-設定同時進行的最大擷取數（預設 8）。`n <= 0` 時忽略。
+設定同時進行的頁面擷取上限（預設 8）。`n <= 0` 時忽略。
 
 ### Close
 
@@ -150,63 +195,100 @@ func SetMaxConcurrency(n int)
 func Close()
 ```
 
-關閉所有快取的瀏覽器實例並釋放資源。
+關閉所有快取中的瀏覽器實例。快取實例閒置超過 5 分鐘也會自動關閉。
 
-### Merge / Dedup / HTML 轉換
+### HTML 處理函式
 
-```go
-func Merge(snapshots []string) (string, error)
-func DedupTree(nodes []*Node)
-func DedupMarkdownParagraphs(md string) string
-func InlineTimeElements(htmlSrc string) (string, error)
-func HTMLToNode(content, baseURL string, keepLinks bool) ([]*Node, error)
-func HTMLToMarkdown(content, baseURL string, keepLinks bool) (string, error)
-```
+| 函式 | 簽章 | 說明 |
+|------|------|------|
+| `Merge` | `func Merge(snapshots []string) (string, error)` | 合併多份 HTML 快照 |
+| `InlineTimeElements` | `func InlineTimeElements(htmlSrc string) (string, error)` | 將 `<time>` 的 datetime 內嵌為文字 |
+| `HTMLToMarkdown` | `func HTMLToMarkdown(content, baseURL string, keepLinks bool) (string, error)` | HTML 轉 Markdown |
+| `HTMLToNode` | `func HTMLToNode(content, baseURL string, keepLinks bool) ([]*Node, error)` | HTML 轉結構樹 |
+| `DedupMarkdownParagraphs` | `func DedupMarkdownParagraphs(md string) string` | 移除重複的 Markdown 段落 |
+| `DedupTree` | `func DedupTree(nodes []*Node) []*Node` | 移除重複的節點 |
 
-多快照合併、段落／節點去重，以及 HTML → Markdown／結構樹轉換。`Fetch` 內部已使用這些函式；亦可單獨呼叫。
+`Fetch` 內部已串接這些函式，亦可單獨使用。
 
 ### Option
 
 | 欄位 | 型別 | 預設 | 說明 |
 |------|------|------|------|
-| `IdleWait` | `time.Duration` | `2s` | 等待 DOM 穩定的時間 |
-| `MaxLength` | `int` | `1MB` | Markdown 輸出長度上限（位元組） |
-| `UserAgent` | `string` | Chrome 124 | 自訂 User-Agent；亦為瀏覽器快取鍵之一 |
-| `KeepLinks` | `bool` | `false` | 是否保留連結與圖片 |
-| `StealthJS` | `string` | 內建 | 自訂 stealth 腳本 |
-| `SettleJS` | `string` | 內建 | 頁面載入後執行的 JS |
-| `Viewport` | `*Viewport` | `1280x960` | 視窗大小與 device scale |
-| `SameSession` | `bool` | `false` | 使用本機 Chrome profile Cookie |
-| `Headless` | `bool` | `false` | 強制 headless（為 true 時不做 headed fallback） |
-| `Profile` | `string` | `"Default"` | Chrome profile 名稱 |
-| `Type` | `int` | `TypeMarkdown` | `TypeMarkdown` / `TypeHTML` / `TypeJSON` |
-| `ScrollCount` | `int` | `3` | 捲動模擬次數；負值視為 0 |
+| `Type` | `int` | `TypeMarkdown` | `TypeMarkdown`／`TypeHTML`／`TypeJSON` |
+| `Headless` | `bool` | `false` | `true` 強制 headless 且不做 headed 重試；`false` 為 headless 優先 |
+| `SameSession` | `bool` | `false` | 注入本機 Chrome profile 的 Cookie |
+| `Profile` | `string` | `"Default"` | `SameSession` 使用的 Chrome profile 名稱 |
+| `ScrollCount` | `int` | `3` | 捲動次數；負值視為 0；頁面不可捲動或快照未變時提前結束 |
+| `IdleWait` | `time.Duration` | `2s` | 每階段等待 DOM 穩定的上限 |
+| `MaxLength` | `int` | `1 << 20` | Markdown 輸出長度上限（位元組） |
+| `KeepLinks` | `bool` | `false` | 保留連結與圖片 |
+| `UserAgent` | `string` | `DefaultUserAgent` | 自訂 User-Agent；與 headless 共同作為瀏覽器快取鍵 |
+| `StealthJS` | `string` | 內建 | 每個新文件載入前執行的腳本 |
+| `SettleJS` | `string` | 內建 | DOM 穩定後執行的腳本 |
+| `Viewport` | `*Viewport` | `1280x960` | 視窗大小 |
+
+### Viewport
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `Width` | `int` | 寬度 |
+| `Height` | `int` | 高度 |
+| `DeviceScaleFactor` | `float64` | 縮放比例，`0` 視為 `1` |
 
 ### Result
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
 | `Href` | `string` | 原始請求 URL |
-| `FinalURL` | `string` | 導向後最終 URL |
-| `Content` | `string` | 擷取內容（Markdown / HTML / JSON 字串） |
-| `ContentType` | `string` | 頁面 Content-Type（JSON/XML 直出時） |
-| `Title` | `string` | 頁面標題 |
-| `Author` | `string` | 文章作者 |
-| `PublishedAt` | `string` | 發布時間（RFC3339） |
-| `Excerpt` | `string` | 文章摘要 |
-| `Status` | `int` | HTTP 狀態碼 |
-| `Consent` | `string` | Cookie 同意橫幅嘗試結果（可選） |
-| `Tree` | `[]*Node` | JSON 模式的結構樹節點 |
+| `FinalURL` | `string` | 導向後的最終 URL |
+| `Content` | `string` | Markdown／HTML／JSON 字串，或原樣 JSON／XML |
+| `ContentType` | `string` | 僅在 JSON／XML 原樣直出時填入 |
+| `Title` | `string` | 文章標題（Markdown 模式） |
+| `Author` | `string` | 文章作者（Markdown 模式） |
+| `PublishedAt` | `string` | 發布時間，RFC3339（Markdown 模式） |
+| `Excerpt` | `string` | 文章摘要（Markdown 模式） |
+| `Status` | `int` | 導覽回應的 HTTP 狀態碼 |
+| `Consent` | `string` | 已套用的橫幅關閉策略（`selector`／`text`／`removed`），多輪以 `,` 串接；`none`、`skipped`（偵測到付費牆或登入牆而略過）或空字串表示未關閉 |
+| `Tree` | `[]*Node` | 結構樹（僅存在於 `TypeJSON` 序列化內容中） |
 
-### 常數
+### Node
 
-| 常數 | 說明 |
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `Type` | `string` | 節點類型 |
+| `Text` | `string` | 文字內容 |
+| `Level` | `int` | 標題層級 |
+| `Datetime` | `string` | `<time>` 的 datetime |
+| `Href` | `string` | 連結（`keepLinks` 時） |
+| `Src` | `string` | 圖片來源（`keepLinks` 時） |
+| `Alt` | `string` | 圖片替代文字（`keepLinks` 時） |
+| `Children` | `[]*Node` | 子節點 |
+
+### Error
+
+```go
+type Error struct {
+	Status int
+	Href   string
+}
+```
+
+| Status | 觸發情境 |
+|--------|----------|
+| `403`／`404` | 最終 URL 路徑或 query 含 `403`／`404` 片段 |
+| `403` | 頁面標題命中 Cloudflare／存取拒絕類字樣 |
+| `204` | 轉換後 Markdown 為空 |
+| `>= 400` | Readability 無法萃取且導覽狀態碼 ≥ 400 |
+
+### 常數與變數
+
+| 名稱 | 說明 |
 |------|------|
 | `TypeMarkdown` | Markdown 輸出 |
 | `TypeHTML` | 合併後 HTML 輸出 |
 | `TypeJSON` | 結構樹 JSON 輸出 |
-| `DefaultUserAgent` | 預設 Chrome 124 User-Agent |
-| `ErrProfileNotFound` | 找不到指定 Chrome profile |
+| `DefaultUserAgent` | 預設 Chrome 124 Linux User-Agent |
+| `ErrProfileNotFound` | 找不到 Chrome profile；`Fetch` 內部會自動退回，不對外回傳 |
 
 ***
 
