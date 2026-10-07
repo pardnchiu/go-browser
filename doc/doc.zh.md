@@ -178,7 +178,7 @@ func Fetch(ctx context.Context, href string, timeout time.Duration, opt *Option)
 | 條件 | 行為 |
 |------|------|
 | `Option.Headless == true` | 僅 headless，不重試 |
-| 網域屬於內建社群清單（`facebook.com`、`x.com`、`linkedin.com` 等）且有顯示器 | 直接 headed |
+| `Option.Visible == true` 或網域屬於內建社群清單（`facebook.com`、`x.com`、`linkedin.com` 等），且有顯示器 | 直接 headed |
 | 其他 | 先 headless；回傳 403／429／503 且有顯示器時改 headed 重試 |
 
 ### SetMaxConcurrency
@@ -216,6 +216,7 @@ func Close()
 |------|------|------|------|
 | `Type` | `int` | `TypeMarkdown` | `TypeMarkdown`／`TypeHTML`／`TypeJSON` |
 | `Headless` | `bool` | `false` | `true` 強制 headless 且不做 headed 重試；`false` 為 headless 優先 |
+| `Visible` | `bool` | `false` | `true` 在有顯示器時直接 headed；無顯示器時退回 headless 優先。`Headless` 為 `true` 時忽略 |
 | `SameSession` | `bool` | `false` | 注入本機 Chrome profile 的 Cookie |
 | `Profile` | `string` | `"Default"` | `SameSession` 使用的 Chrome profile 名稱 |
 | `ScrollCount` | `int` | `3` | 捲動次數；負值視為 0；頁面不可捲動或快照未變時提前結束 |
