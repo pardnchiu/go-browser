@@ -178,7 +178,7 @@ Routing order:
 | Condition | Behavior |
 |-----------|----------|
 | `Option.Headless == true` | Headless only, no retry |
-| Domain in the built-in social list (`facebook.com`, `x.com`, `linkedin.com`, ...) and a display exists | Headed directly |
+| `Option.Visible == true`, or domain in the built-in social list (`facebook.com`, `x.com`, `linkedin.com`, ...), and a display exists | Headed directly |
 | Otherwise | Headless first; retry headed on 403, 429, or 503 when a display exists |
 
 ### SetMaxConcurrency
@@ -216,6 +216,7 @@ Closes every cached browser instance. Cached instances idle for more than 5 minu
 |-------|------|---------|-------------|
 | `Type` | `int` | `TypeMarkdown` | `TypeMarkdown` / `TypeHTML` / `TypeJSON` |
 | `Headless` | `bool` | `false` | `true` forces headless with no headed retry; `false` means headless first |
+| `Visible` | `bool` | `false` | `true` goes headed directly when a display exists; without a display it falls back to headless first. Ignored when `Headless` is `true` |
 | `SameSession` | `bool` | `false` | Injects cookies from the local Chrome profile |
 | `Profile` | `string` | `"Default"` | Chrome profile name used by `SameSession` |
 | `ScrollCount` | `int` | `3` | Scroll steps; negative means 0; stops early when the page is not scrollable or the snapshot stops changing |

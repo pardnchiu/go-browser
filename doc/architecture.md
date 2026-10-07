@@ -60,7 +60,7 @@ graph TB
         A[prepareOpt] --> B[parseHref]
         B --> C{opt.Headless?}
         C -->|Yes| D[fetchWith headless]
-        C -->|No| E{requiresSession and hasDisplay?}
+        C -->|No| E{(Visible or requiresSession) and hasDisplay?}
         E -->|Yes| F[fetchWith headed]
         E -->|No| G[fetchWith headless]
         G --> H{isBlocked and hasDisplay?}
