@@ -49,6 +49,7 @@ type Option struct {
 	Viewport    *Viewport
 	SameSession bool
 	Headless    bool
+	Visible     bool
 	Profile     string
 	Type        int
 	ScrollCount int
@@ -181,7 +182,7 @@ func Fetch(ctx context.Context, href string, timeout time.Duration, opt *Option)
 		return fetchWith(ctx, href, parsed, timeout, &forced)
 	}
 
-	if requiresSession(parsed.Hostname()) && hasDisplay() {
+	if (o.Visible || requiresSession(parsed.Hostname())) && hasDisplay() {
 		forced := *o
 		forced.attemptHeadless = false
 		return fetchWith(ctx, href, parsed, timeout, &forced)
