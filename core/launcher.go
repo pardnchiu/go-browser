@@ -228,7 +228,7 @@ func launchWithSnapshot(ctx context.Context, profileName, userAgent string, head
 			if success == 0 {
 				_ = b.Close()
 				removeTmp()
-				return nil, nil, fmt.Errorf("inject cookies (0/%d): %w", len(sanitized), lastErr)
+				return nil, nil, fmt.Errorf("[Upstream] inject cookies (0/%d): %w", len(sanitized), lastErr)
 			}
 		}
 	}

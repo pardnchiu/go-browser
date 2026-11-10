@@ -10,10 +10,9 @@ Last updated: 2026-10-06
 - Google Chrome or Chromium (macOS or Linux)
 - macOS: Chrome at `/Applications/Google Chrome.app/` or `/Applications/Chromium.app/`
 - Linux: `google-chrome`, `google-chrome-stable`, `chromium`, or `chromium-browser` on `PATH`
-- For `SameSession`:
-  - `sqlite3` CLI (reads the Cookies database)
-  - macOS: built-in `security` tool (reads the Chrome Safe Storage password)
-  - Linux: `secret-tool` (`libsecret-tools`, reads the Chrome Safe Storage password)
+- For `SameSession` (the Cookies database itself is read in-process, no `sqlite3` CLI needed):
+  - macOS: built-in `security` tool (reads the Chrome Safe Storage password from Keychain)
+  - Linux: `secret-tool` (`libsecret-tools`) and/or `kwallet-query` (`kwallet`) to read the Chrome Safe Storage password from gnome-keyring or KWallet
 
 ## Installation
 
