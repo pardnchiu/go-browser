@@ -111,21 +111,22 @@ graph TB
 
 ## 模組：Cookie
 
-從本機 Chrome 設定檔解密 Cookie，供 SameSession 注入暫存瀏覽器；僅支援 darwin 與 linux。
+從本機 Chrome 設定檔解密 v10 與 v11 Cookie，供 SameSession 注入暫存瀏覽器；僅支援 darwin 與 linux。Cookies 資料庫以 go-sqlkit in-process 讀取，AES 金鑰依平台推導。
 
 ```mermaid
 graph TB
     subgraph Cookie
-        A[chromeSafeStoragePassword] --> B{平台}
-        B -->|darwin| C[security find-generic-password]
-        B -->|linux| D[secret-tool lookup chrome / chromium]
-        C --> E[PBKDF2-SHA1 推導金鑰]
-        D --> E
-        E --> F[sqlite3 查詢 cookies 表]
-        F --> G[v10 前綴 AES-CBC 解密]
-        G --> H[NetworkCookieParam 清單]
+        Q[go-sqlkit 查詢 cookies 表] --> S[取第一筆 v11 樣本]
+        S --> K{cookieKeys 依平台}
+        K -->|darwin| C[security find-generic-password 得 v10 金鑰 PBKDF2 iter 1003]
+        K -->|linux| L[peanuts 得 v10 金鑰 PBKDF2 iter 1]
+        L --> KR[linuxKeyringPasswords 並行 secret-tool 與 kwallet-query]
+        KR --> M[以 SHA-256 host_key domain-hash 挑選 v11 金鑰]
+        C --> D[依前綴 AES-CBC 解密 v10 或 v11]
+        M --> D
+        D --> H[NetworkCookieParam 清單]
     end
-    Profile[Chrome Profile Cookies] --> F
+    Profile[Chrome Profile Cookies] --> Q
     Other[其他平台] --> Unsupported[回傳不支援錯誤]
 ```
 

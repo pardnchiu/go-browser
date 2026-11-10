@@ -111,21 +111,22 @@ graph TB
 
 ## Module: Cookie
 
-Decrypts cookies from the local Chrome profile for SameSession injection; supports darwin and linux only.
+Decrypts v10 and v11 cookies from the local Chrome profile for SameSession injection; supports darwin and linux only. The cookies database is read in-process via go-sqlkit, and the AES key is derived per platform.
 
 ```mermaid
 graph TB
     subgraph Cookie
-        A[chromeSafeStoragePassword] --> B{Platform}
-        B -->|darwin| C[security find-generic-password]
-        B -->|linux| D[secret-tool lookup chrome / chromium]
-        C --> E[PBKDF2-SHA1 key derivation]
-        D --> E
-        E --> F[sqlite3 query cookies table]
-        F --> G[v10-prefixed AES-CBC decrypt]
-        G --> H[NetworkCookieParam list]
+        Q[go-sqlkit query cookies table] --> S[collect first v11 sample]
+        S --> K{cookieKeys by platform}
+        K -->|darwin| C[security find-generic-password then v10 key PBKDF2 iter 1003]
+        K -->|linux| L[peanuts then v10 key PBKDF2 iter 1]
+        L --> KR[linuxKeyringPasswords secret-tool plus kwallet-query concurrent]
+        KR --> M[select v11 key by SHA-256 host_key domain-hash]
+        C --> D[per-prefix AES-CBC decrypt v10 or v11]
+        M --> D
+        D --> H[NetworkCookieParam list]
     end
-    Profile[Chrome Profile Cookies] --> F
+    Profile[Chrome Profile Cookies] --> Q
     Other[Other platforms] --> Unsupported[Unsupported error]
 ```
 

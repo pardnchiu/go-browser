@@ -10,10 +10,9 @@
 - Google Chrome 或 Chromium（macOS 或 Linux）
 - macOS：Chrome 位於 `/Applications/Google Chrome.app/` 或 `/Applications/Chromium.app/`
 - Linux：`PATH` 中可找到 `google-chrome`、`google-chrome-stable`、`chromium` 或 `chromium-browser`
-- 使用 `SameSession` 時：
-  - `sqlite3` 命令列工具（讀取 Cookies 資料庫）
-  - macOS：內建 `security` 工具（讀取 Chrome Safe Storage 密碼）
-  - Linux：`secret-tool`（`libsecret-tools`，讀取 Chrome Safe Storage 密碼）
+- 使用 `SameSession` 時（Cookies 資料庫改為 in-process 讀取，不需 `sqlite3` CLI）：
+  - macOS：內建 `security` 工具（從 Keychain 讀取 Chrome Safe Storage 密碼）
+  - Linux：`secret-tool`（`libsecret-tools`）與／或 `kwallet-query`（`kwallet`），從 gnome-keyring 或 KWallet 讀取 Chrome Safe Storage 密碼
 
 ## 安裝
 
