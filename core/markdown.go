@@ -431,7 +431,7 @@ func flattenChildren(nodes []*Node) []*Node {
 	out := make([]*Node, 0, len(nodes))
 	for _, c := range nodes {
 		c.Children = flattenChildren(c.Children)
-		if len(c.Children) == 1 {
+		if len(c.Children) == 1 && c.Type != "link" {
 			out = append(out, c.Children[0])
 			continue
 		}
@@ -446,7 +446,7 @@ func HTMLToMarkdown(content, baseURL string, keepLinks bool) (string, error) {
 		return "", fmt.Errorf("html.Parse: %w", err)
 	}
 
-	var sb strings.Builder
+	sb := &strings.Builder{}
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
 		if n.Type == html.TextNode {
@@ -484,7 +484,7 @@ func HTMLToMarkdown(content, baseURL string, keepLinks bool) (string, error) {
 			}
 			alt, imgURL := extractImage(n, baseURL)
 			if imgURL != "" {
-				fmt.Fprintf(&sb, "\n![%s](%s)\n", alt, imgURL)
+				fmt.Fprintf(sb, "\n![%s](%s)\n", alt, imgURL)
 			}
 			return
 
@@ -555,7 +555,7 @@ func HTMLToMarkdown(content, baseURL string, keepLinks bool) (string, error) {
 			}
 			linkHref := attrMap(n)["href"]
 			resolved := resolveLink(linkHref, baseURL)
-			var text strings.Builder
+			text := &strings.Builder{}
 			orig := sb
 			sb = text
 			for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -564,7 +564,7 @@ func HTMLToMarkdown(content, baseURL string, keepLinks bool) (string, error) {
 			sb = orig
 			t := strings.TrimSpace(text.String())
 			if t != "" && resolved != "" {
-				fmt.Fprintf(&sb, "[%s](%s)", t, resolved)
+				fmt.Fprintf(sb, "[%s](%s)", t, resolved)
 			} else if t != "" {
 				sb.WriteString(t)
 			}
