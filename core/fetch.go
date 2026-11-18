@@ -86,7 +86,21 @@ const (
 	stableWindow     = 400 * time.Millisecond
 	scrollPause      = 150 * time.Millisecond
 	scrollJitter     = 300 * time.Millisecond
+	loadWait         = 10 * time.Second
 )
+
+func waitLoad(ctx context.Context, page *gorod.Page) error {
+	loadCtx, cancel := context.WithTimeout(ctx, loadWait)
+	err := page.Context(loadCtx).WaitLoad()
+	cancel()
+	if err == nil || ctx.Err() != nil || !errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	if v, evalErr := page.Eval(`() => document.readyState`); evalErr == nil && v.Value.Str() != "loading" {
+		return nil
+	}
+	return page.WaitLoad()
+}
 
 func settle(ctx context.Context, page *gorod.Page, idleWait time.Duration) {
 	window := min(stableWindow, idleWait)
@@ -299,7 +313,7 @@ func load(ctx context.Context, b *gorod.Browser, href string, parsed *url.URL, t
 	if err := page.Navigate(href); err != nil {
 		return nil, fmt.Errorf("page.Navigate: %w", err)
 	}
-	if err := page.WaitLoad(); err != nil {
+	if err := waitLoad(ctx, page); err != nil {
 		return nil, fmt.Errorf("page.WaitLoad: %w", err)
 	}
 
