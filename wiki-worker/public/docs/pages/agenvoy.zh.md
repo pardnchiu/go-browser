@@ -8,7 +8,7 @@ Agenvoy 依賴 `github.com/pardnchiu/go-browser v0.3.5`，其中三個[網頁工
 
 | Agenvoy 工具 | 原始碼 | 何時呼叫 `Fetch` | 傳入的 `Option` |
 | --- | --- | --- | --- |
-| `fetch_page` | `internal/tools/fetchPage/fetchPage.go` | 每次讀取頁面且未命中 30 分鐘快取時 | `KeepLinks`、`SameSession`、`Visible`、`Type`、`ScrollCount`、`MaxLength`、`Profile` |
+| `fetch_page` | `internal/tools/fetchPage/fetchPage.go` | 每次讀取頁面且未命中 30 分鐘快取時 | `KeepLinks`、`SameSession`、`Visible`、`Type`、`ScrollCount`、`MaxLength` |
 | `download_file` | `internal/tools/fetchPage/downloadFile.go` | `render=true`：頁面渲染後寫入檔案，而非回傳給 agent | 與 `fetch_page` 相同，固定開啟 `SameSession`、先無頭、不限長度 |
 | `search_web` | `internal/tools/searchWeb/fetch.go` | `cdp=true`，或 DuckDuckGo 對一般 HTTP 請求回 202 之後 | `Type` = `TypeHTML`、`MaxLength` = 200 KiB |
 
@@ -24,16 +24,15 @@ Agenvoy 依賴 `github.com/pardnchiu/go-browser v0.3.5`，其中三個[網頁工
 | `headless`（預設 `true`） | `Visible` = `!headless` | 先無頭，被擋時以有頭模式重試；見 [Fetch 路由](/zh/core-concepts-routing) |
 | `scroll`（0-20） | `ScrollCount`，0 會轉成 -1（不捲動） | 載入延遲內容；見 [頁面載入](/zh/core-concepts-snapshots) |
 
-Agenvoy 另外自行設定兩個欄位：
+Agenvoy 另外自行設定一個欄位：
 
-- `Profile`：開啟 `same_session` 或以可見視窗讀取時，從 Chrome 的 Local State 檔讀出最近使用的設定檔（否則為 `Default`）
 - `MaxLength`：回傳給 agent 時設為 1 MiB 加 1 byte，藉此偵測超過 1 MiB 的 `html` 頁面並拒絕、改指向 `download_file`；存檔時不限長度
 
 Agenvoy 對 [`Result`](/zh/api-reference-types#result) 的處理：
 
 - `markdown`：`Title`、`Href`、`Author`、`PublishedAt`、`Excerpt` 寫成 `Content` 上方的 YAML frontmatter
 - `json`：`Content` 解碼成 `Title` 與節點 `Tree`
-- 回傳 [`*Error`](/zh/api-reference-types#error)、`Status` 為 400 以上，或標題是 404／403 類字樣時，該網址會記入 Agenvoy 的 ToriiDB 工具快取並被略過（5xx 12 小時、空白頁 72 小時、4xx 90 天），直到 agent 傳入 `force`；見 [ToriiDB 在 Agenvoy 中的用法](https://toriidb.pardn.io/zh/agenvoy)
+- 回傳 [`*Error`](/zh/api-reference-types#error)、`Status` 為 400 以上，或標題命中 [`IsErrorPageTitle`](/zh/api-reference#iserrorpagetitle)時，該網址會記入 Agenvoy 的 ToriiDB 工具快取並被略過（5xx 12 小時、空白頁 72 小時、4xx 90 天），直到 agent 傳入 `force`；見 [ToriiDB 在 Agenvoy 中的用法](https://toriidb.pardn.io/zh/agenvoy)
 
 讀取後，Agenvoy 的決策模型會依當前請求過濾頁面內容，實測效果見 [fetch_page 過濾基準測試](https://agenvoy.com/zh/providers-typesafe-fetch-page)。
 

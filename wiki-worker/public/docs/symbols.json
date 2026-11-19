@@ -66,6 +66,16 @@
   },
   {
     "package": "core",
+    "name": "IsErrorPageTitle",
+    "kind": "func"
+  },
+  {
+    "package": "core",
+    "name": "ValidURL",
+    "kind": "func"
+  },
+  {
+    "package": "core",
     "name": "Browser",
     "kind": "type"
   },

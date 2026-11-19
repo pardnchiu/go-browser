@@ -23,7 +23,7 @@ If headed mode returns `ErrChallengeRequired`, set a positive `ChallengeWait` on
 | Message | Cause |
 |---|---|
 | `url.Parse: ...` | The URL cannot be parsed |
-| `invalid url: ...` | The URL has no scheme, or the hostname contains no `.` |
+| `[Invalid] <url>: ...` | The URL has no scheme, the hostname contains no `.`, it contains credentials, or it exceeds 2048 characters |
 | `readability: no article extracted from N snapshots` | No snapshot parsed into an article and the status was below 400 |
 | `acquireSem: context deadline exceeded` | The concurrency cap was full until `timeout` expired; see [Browser Cache](/core-concepts-browser-cache) |
 | `launcher.Launch: ...` | Chrome failed to start, usually a missing binary or a sandbox restriction |

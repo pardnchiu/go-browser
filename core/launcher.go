@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -252,6 +253,26 @@ func chromeProfileRoot() string {
 		return filepath.Join(home, ".config", "google-chrome")
 	}
 	return ""
+}
+
+func lastUsedProfile() string {
+	root := chromeProfileRoot()
+	if root == "" {
+		return "Default"
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "Local State"))
+	if err != nil {
+		return "Default"
+	}
+	var state struct {
+		Profile struct {
+			LastUsed string `json:"last_used"`
+		} `json:"profile"`
+	}
+	if err := json.Unmarshal(raw, &state); err != nil || state.Profile.LastUsed == "" {
+		return "Default"
+	}
+	return state.Profile.LastUsed
 }
 
 func copyFileIfExists(src, dst string) error {

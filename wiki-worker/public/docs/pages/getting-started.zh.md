@@ -51,7 +51,7 @@ func main() {
 }
 ```
 
-`opt` 傳 `nil` 即採全部預設值：headless 優先、最多捲動 3 次、Markdown 輸出、2 秒 idle 等待。URL 必須有 scheme 且 hostname 含 `.`，因此 `http://localhost:8080` 會回傳 `invalid url`。
+`opt` 傳 `nil` 即採全部預設值：headless 優先、最多捲動 3 次、Markdown 輸出、2 秒 idle 等待。URL 必須有 scheme 且 hostname 含 `.`，因此 `http://localhost:8080` 會回傳 `[Invalid] http://localhost:8080: must have a valid hostname`。
 
 ### 結束前呼叫 Close
 

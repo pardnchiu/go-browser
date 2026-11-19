@@ -51,7 +51,7 @@ func main() {
 }
 ```
 
-Passing `nil` for `opt` takes every default: headless first, up to three scroll passes, Markdown output, a two second idle wait. The URL needs a scheme and a dotted hostname, so `http://localhost:8080` is rejected with `invalid url`.
+Passing `nil` for `opt` takes every default: headless first, up to three scroll passes, Markdown output, a two second idle wait. The URL needs a scheme and a dotted hostname, so `http://localhost:8080` is rejected with `[Invalid] http://localhost:8080: must have a valid hostname`.
 
 ### Call Close before exit
 
