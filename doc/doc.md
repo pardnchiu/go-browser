@@ -1,8 +1,8 @@
 # go-browser - Documentation
 
-Last updated: 2026-10-06
+Last updated: 2026-11-19
 
-> Back to [README](../README.md)
+> Back to [README](../README.md) · [Online documentation](https://go-browser.pardn.io/getting-started)
 
 ## Prerequisites
 
@@ -140,6 +140,19 @@ fmt.Println(result.Content)
 
 `SameSession: true` copies the profile's Cookies file to a temp directory, decrypts it, and injects the cookies into a single-use browser. Multi-step interaction such as clicking or form filling is out of scope; use Playwright MCP instead.
 
+### Advanced: Wait for Manual Verification
+
+Set [`Option.ChallengeWait`](#option) to a positive duration to let the user complete a detected challenge in the same headed tab. When a GUI is available, `Visible: true` starts directly in headed mode. Verification is manual.
+
+```mermaid
+flowchart LR
+    A[Challenge detected in headed tab] --> B{Wait enabled?}
+    B -->|No| C[ErrChallengeRequired]
+    B -->|Yes| D[User verifies in the same tab]
+    D -->|Challenge clears| E[Resume loading and extraction]
+    D -->|Wait expires| F[ErrChallenge]
+```
+
 ### Advanced: Inspect Consent Banner Handling
 
 ```go
@@ -170,7 +183,7 @@ defer browser.Close()
 func Fetch(ctx context.Context, href string, timeout time.Duration, opt *Option) (*Result, error)
 ```
 
-Fetches the URL through Chrome. With `timeout <= 0`, only `ctx` bounds the call. `href` must have a scheme and a hostname containing `.`, otherwise it returns `invalid url`.
+Fetches the URL through Chrome. With `timeout <= 0`, there is no separate page-load deadline; caller cancellation and any configured challenge wait still apply. `href` must have a scheme and a hostname containing `.`, otherwise it returns `invalid url`.
 
 Routing order:
 
@@ -178,7 +191,9 @@ Routing order:
 |-----------|----------|
 | `Option.Headless == true` | Headless only, no retry |
 | `Option.Visible == true`, or domain in the built-in social list (`facebook.com`, `x.com`, `linkedin.com`, ...), and a display exists | Headed directly |
-| Otherwise | Headless first; retry headed on 403, 429, or 503 when a display exists |
+| Otherwise | Headless first; retry headed once on 403, 429, or 503 when a GUI is available |
+
+`Fetch` checks for challenges after the initial load and before extraction in every output mode. A headless attempt that detects a challenge reports `*Error{Status: 403}` and follows the routing above. In headed mode, waiting has a separate deadline and respects the caller’s context. If the challenge persists for about five seconds, the library attempts to show the window. After the challenge clears, `Fetch` renews the page-load deadline and continues in the same tab. See [Fetch routing](https://go-browser.pardn.io/core-concepts-routing#manual-verification).
 
 ### SetMaxConcurrency
 
@@ -216,6 +231,7 @@ Closes every cached browser instance. Cached instances idle for more than 5 minu
 | `Type` | `int` | `TypeMarkdown` | `TypeMarkdown` / `TypeHTML` / `TypeJSON` |
 | `Headless` | `bool` | `false` | `true` forces headless with no headed retry; `false` means headless first |
 | `Visible` | `bool` | `false` | `true` goes headed directly when a display exists; without a display it falls back to headless first. Ignored when `Headless` is `true` |
+| `ChallengeWait` | `time.Duration` | `0` | Maximum wait for manual verification in headed mode; zero or negative disables waiting, and the option does not change routing |
 | `SameSession` | `bool` | `false` | Injects cookies from the local Chrome profile |
 | `Profile` | `string` | `"Default"` | Chrome profile name used by `SameSession` |
 | `ScrollCount` | `int` | `3` | Scroll steps; negative means 0; stops early when the page is not scrollable or the snapshot stops changing |
@@ -276,7 +292,7 @@ type Error struct {
 | Status | Trigger |
 |--------|---------|
 | `403` / `404` | Final URL path or query contains a `403` / `404` segment |
-| `403` | Page title matches Cloudflare / access-denied phrases |
+| `403` | A challenge is detected in headless mode, or the extracted article title matches a challenge or access-denied phrase |
 | `204` | Converted Markdown is empty |
 | `>= 400` | Readability extracts nothing and the navigation status is 400 or above |
 
@@ -288,6 +304,8 @@ type Error struct {
 | `TypeHTML` | Merged HTML output |
 | `TypeJSON` | Node-tree JSON output |
 | `DefaultUserAgent` | Default Chrome 124 Linux User-Agent |
+| `ErrChallengeRequired` | A challenge was detected in headed mode, but waiting is disabled |
+| `ErrChallenge` | The manual verification window expired before the challenge cleared |
 | `ErrProfileNotFound` | Chrome profile not found; `Fetch` falls back internally and never returns it |
 
 ***

@@ -1,8 +1,8 @@
 # go-browser - 架構
 
-最後更新：2026-10-06
+最後更新：2026-11-19
 
-> 返回 [README](./README.zh.md)
+> 返回 [README](./README.zh.md) · [線上架構文件](https://go-browser.pardn.io/zh/architecture)
 
 ## 概覽
 
@@ -10,7 +10,7 @@
 graph TB
     A[Fetch] --> B{路由}
     B -->|Headless 強制| C[headless]
-    B -->|社群網域 + 有顯示器| D[headed]
+    B -->|Visible 或工作階段網域 + 圖形介面| D[headed]
     B -->|預設| E[headless 優先]
     E -->|403/429/503 + 有顯示器| D
     C --> F{SameSession?}
@@ -89,7 +89,14 @@ graph TB
         A[acquireSem] --> B[新分頁 + Viewport]
         B --> C[StealthJS EvalOnNewDocument]
         C --> D[Navigate + WaitLoad]
-        D --> E{最終 URL 含 403/404?}
+        D --> S{偵測到真人驗證？}
+        S -->|否| E{最終 URL 含 403/404?}
+        S -->|無頭模式| T[回傳 403 供路由判斷]
+        S -->|有視窗且未啟用等待| U[ErrChallengeRequired]
+        S -->|有視窗且已啟用等待| V[等待使用者在同一分頁驗證]
+        V -->|通過驗證| W[重新計算載入期限 + WaitLoad]
+        W --> E
+        V -->|逾時或取消| Z[ErrChallenge 或 context 錯誤]
         E -->|是| X[Error]
         E -->|否| F{Content-Type JSON/XML?}
         F -->|是| Y[原樣回傳]
@@ -186,15 +193,22 @@ sequenceDiagram
         Launcher->>Chrome: 重用或新建實例
     end
     Fetch->>Chrome: Navigate + WaitLoad
+    Fetch->>Chrome: 選擇輸出格式前偵測真人驗證
+    opt 預設無頭路由遇阻且有圖形介面
+        Fetch->>Launcher: 改用有視窗的瀏覽器重試一次
+        Fetch->>Chrome: 重新導覽、等待載入並偵測驗證
+    end
+    opt 有視窗且已啟用驗證等待
+        Fetch->>Chrome: 等待使用者在同一分頁驗證
+        Chrome-->>Fetch: 驗證通過
+        Fetch->>Chrome: 重新計算載入期限並等待載入
+    end
     Fetch->>Chrome: settle + SettleJS + consent
     loop 最多 ScrollCount 次
         Fetch->>Chrome: 捲動 + HTML 快照
     end
     Fetch->>Markdown: Merge / Readability / HTMLToMarkdown / HTMLToNode
     Markdown-->>Fetch: content
-    opt headless 被擋且有顯示器
-        Fetch->>Launcher: headed 重試
-    end
     Fetch-->>Caller: Result 或 Error
 ```
 

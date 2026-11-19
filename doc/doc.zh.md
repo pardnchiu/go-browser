@@ -1,8 +1,8 @@
 # go-browser - 技術文件
 
-最後更新：2026-10-06
+最後更新：2026-11-19
 
-> 返回 [README](./README.zh.md)
+> 返回 [README](./README.zh.md) · [線上文件](https://go-browser.pardn.io/zh/getting-started)
 
 ## 前置需求
 
@@ -140,6 +140,19 @@ fmt.Println(result.Content)
 
 `SameSession: true` 會把 profile 的 Cookies 檔複製到暫存目錄、解密後注入一個用完即關的瀏覽器。點擊、填表等多步互動不在本函式庫範圍內，請改用 Playwright MCP。
 
+### 進階：等待手動完成真人驗證
+
+將 [`Option.ChallengeWait`](#option) 設為正值，即可在有視窗的瀏覽器中等待使用者於同一分頁完成驗證。有圖形介面時，可設 `Visible: true` 直接使用有視窗的瀏覽器。驗證由使用者手動完成。
+
+```mermaid
+flowchart LR
+    A[有視窗的分頁偵測到真人驗證] --> B{已啟用等待？}
+    B -->|否| C[ErrChallengeRequired]
+    B -->|是| D[使用者在同一分頁驗證]
+    D -->|通過驗證| E[繼續載入與擷取]
+    D -->|等待逾時| F[ErrChallenge]
+```
+
 ### 進階：檢視 Cookie 橫幅處理結果
 
 ```go
@@ -170,7 +183,7 @@ defer browser.Close()
 func Fetch(ctx context.Context, href string, timeout time.Duration, opt *Option) (*Result, error)
 ```
 
-以 Chrome 擷取指定 URL。`timeout <= 0` 時僅受 `ctx` 控制。`href` 需含 scheme 且主機名含 `.`，否則回傳 `invalid url`。
+以 Chrome 擷取指定 URL。`timeout <= 0` 時不另設頁面載入期限；呼叫端的 `ctx` 與已設定的驗證等待期限仍有效。`href` 需含 scheme 且主機名含 `.`，否則回傳 `invalid url`。
 
 路由順序：
 
@@ -178,7 +191,9 @@ func Fetch(ctx context.Context, href string, timeout time.Duration, opt *Option)
 |------|------|
 | `Option.Headless == true` | 僅 headless，不重試 |
 | `Option.Visible == true` 或網域屬於內建社群清單（`facebook.com`、`x.com`、`linkedin.com` 等），且有顯示器 | 直接 headed |
-| 其他 | 先 headless；回傳 403／429／503 且有顯示器時改 headed 重試 |
+| 其他 | 先以無頭模式執行；回傳 403／429／503 且有圖形介面時，改用有視窗的瀏覽器重試一次 |
+
+`Fetch` 在初次載入後、擷取前偵測驗證，適用於所有輸出模式。無頭模式偵測到驗證時回傳 `*Error{Status: 403}`，依上表決定是否重試。有視窗時，驗證等待有獨立期限，且遵守呼叫端的 `ctx`；驗證持續約五秒時，函式庫會嘗試顯示視窗。驗證通過後，`Fetch` 重新計算載入期限，並在同一分頁繼續。詳見[擷取路由](https://go-browser.pardn.io/zh/core-concepts-routing)。
 
 ### SetMaxConcurrency
 
@@ -216,6 +231,7 @@ func Close()
 | `Type` | `int` | `TypeMarkdown` | `TypeMarkdown`／`TypeHTML`／`TypeJSON` |
 | `Headless` | `bool` | `false` | `true` 強制 headless 且不做 headed 重試；`false` 為 headless 優先 |
 | `Visible` | `bool` | `false` | `true` 在有顯示器時直接 headed；無顯示器時退回 headless 優先。`Headless` 為 `true` 時忽略 |
+| `ChallengeWait` | `time.Duration` | `0` | 在有視窗的瀏覽器等待手動驗證的上限；零或負值停用等待，不改變路由 |
 | `SameSession` | `bool` | `false` | 注入本機 Chrome profile 的 Cookie |
 | `Profile` | `string` | `"Default"` | `SameSession` 使用的 Chrome profile 名稱 |
 | `ScrollCount` | `int` | `3` | 捲動次數；負值視為 0；頁面不可捲動或快照未變時提前結束 |
@@ -276,7 +292,7 @@ type Error struct {
 | Status | 觸發情境 |
 |--------|----------|
 | `403`／`404` | 最終 URL 路徑或 query 含 `403`／`404` 片段 |
-| `403` | 頁面標題命中 Cloudflare／存取拒絕類字樣 |
+| `403` | 無頭模式偵測到真人驗證，或擷取到的文章標題包含驗證或存取拒絕類字樣 |
 | `204` | 轉換後 Markdown 為空 |
 | `>= 400` | Readability 無法萃取且導覽狀態碼 ≥ 400 |
 
@@ -288,6 +304,8 @@ type Error struct {
 | `TypeHTML` | 合併後 HTML 輸出 |
 | `TypeJSON` | 結構樹 JSON 輸出 |
 | `DefaultUserAgent` | 預設 Chrome 124 Linux User-Agent |
+| `ErrChallengeRequired` | 有視窗的模式偵測到真人驗證，但未啟用等待 |
+| `ErrChallenge` | 等待期限已屆，驗證仍未完成 |
 | `ErrProfileNotFound` | 找不到 Chrome profile；`Fetch` 內部會自動退回，不對外回傳 |
 
 ***
