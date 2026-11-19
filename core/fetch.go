@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,8 +23,6 @@ const (
 	TypeJSON
 )
 
-const defaultScrollCount = 3
-
 //go:embed embed/stealth.js
 var defaultStealthJS string
 
@@ -32,6 +31,9 @@ var defaultListenerJS string
 
 //go:embed embed/consent.js
 var defaultConsentJS string
+
+//go:embed embed/error_page_titles.json
+var errorPageTitlesJSON string
 
 type Viewport struct {
 	Width             int
@@ -82,12 +84,14 @@ func (e *Error) Error() string {
 }
 
 const (
-	defaultIdleWait  = 2 * time.Second
-	defaultMaxLength = 1 << 20
-	stableWindow     = 400 * time.Millisecond
-	scrollPause      = 150 * time.Millisecond
-	scrollJitter     = 300 * time.Millisecond
-	loadWait         = 10 * time.Second
+	defaultIdleWait    = 2 * time.Second
+	defaultMaxLength   = 1 << 20
+	defaultScrollCount = 3
+	stableWindow       = 400 * time.Millisecond
+	scrollPause        = 150 * time.Millisecond
+	scrollJitter       = 300 * time.Millisecond
+	loadWait           = 10 * time.Second
+	maxHrefLength      = 2048
 )
 
 func waitLoad(ctx context.Context, page *gorod.Page) error {
@@ -163,7 +167,7 @@ func prepareOpt(opt *Option) *Option {
 		o.Viewport = &Viewport{Width: 1280, Height: 960}
 	}
 	if o.Profile == "" {
-		o.Profile = "Default"
+		o.Profile = lastUsedProfile()
 	}
 	if o.ScrollCount == 0 {
 		o.ScrollCount = defaultScrollCount
@@ -173,13 +177,31 @@ func prepareOpt(opt *Option) *Option {
 	return &o
 }
 
-func parseHref(href string) (*url.URL, error) {
+func ValidURL(href string) (*url.URL, error) {
+	if len(href) > maxHrefLength {
+		return nil, fmt.Errorf("[Invalid] %s...: too long: max %d chars", href[:64], maxHrefLength)
+	}
+
 	parsed, err := url.Parse(href)
 	if err != nil {
-		return nil, fmt.Errorf("url.Parse: %w", err)
+		return nil, fmt.Errorf("[Invalid] url.Parse: %w", err)
 	}
-	if parsed.Scheme == "" || !strings.Contains(parsed.Hostname(), ".") {
-		return nil, fmt.Errorf("invalid url: %s", href)
+	if parsed.User != nil {
+		return nil, fmt.Errorf("[Invalid] %s: must not contain credentials", parsed.Redacted())
+	}
+	if !strings.Contains(parsed.Hostname(), ".") {
+		return nil, fmt.Errorf("[Invalid] %s: must have a valid hostname", href)
+	}
+	return parsed, nil
+}
+
+func parseHref(href string) (*url.URL, error) {
+	parsed, err := ValidURL(href)
+	if err != nil {
+		return nil, err
+	}
+	if parsed.Scheme == "" {
+		return nil, fmt.Errorf("[Invalid] %s: missing scheme", href)
 	}
 	return parsed, nil
 }
@@ -539,4 +561,22 @@ scrollLoop:
 		}, nil
 	}
 	return result, nil
+}
+
+var errorPageTitles = func() []string {
+	var list []string
+	if err := json.Unmarshal([]byte(errorPageTitlesJSON), &list); err != nil {
+		panic(fmt.Sprintf("[Internal] embed/error_page_titles.json: %v", err))
+	}
+	for i, title := range list {
+		list[i] = strings.ToLower(strings.TrimSpace(title))
+	}
+	return list
+}()
+
+func IsErrorPageTitle(title string) bool {
+	title = strings.ToLower(title)
+	return slices.ContainsFunc(errorPageTitles, func(pat string) bool {
+		return strings.Contains(title, pat)
+	})
 }
