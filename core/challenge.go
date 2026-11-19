@@ -30,6 +30,8 @@ var ErrChallenge = errors.New("[Timeout] challenge: not completed by the user")
 
 var ErrChallengeRequired = errors.New("[Denied] challenge: manual verification required")
 
+var ErrChallengeClosed = errors.New("[Canceled] challenge: window closed by the user")
+
 const (
 	challengePoll    = time.Second
 	challengeGrace   = 5 * time.Second
@@ -46,6 +48,13 @@ func hasChallenge(page *gorod.Page) (bool, error) {
 		return false, err
 	}
 	return v.Value.Bool(), nil
+}
+
+func targetClosed(page *gorod.Page) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), restoreTimeout)
+	defer cancel()
+	_, err := proto.TargetGetTargetInfo{TargetID: page.TargetID}.Call(page.Browser().Context(ctx))
+	return err != nil
 }
 
 func revealWindow(page, base *gorod.Page) func() {
@@ -103,6 +112,9 @@ func waitChallenge(ctx context.Context, page *gorod.Page, href string, wait time
 
 		pending, err := hasChallenge(p)
 		if err != nil {
+			if waitCtx.Err() == nil && targetClosed(page) {
+				return fmt.Errorf("%w: %s", ErrChallengeClosed, href)
+			}
 			settled = 0
 			continue
 		}
