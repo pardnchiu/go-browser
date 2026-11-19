@@ -17,7 +17,7 @@ Every field of `browser.Option`, the value used when it is left at its zero valu
 | `Headless` | `bool` | `false` | Forces headless with no headed retry |
 | `Visible` | `bool` | `false` | Goes headed directly with no retry when a GUI is available; without a GUI it falls back to headless first. Ignored when `Headless` is true, see [Fetch Routing](/core-concepts-routing) |
 | `ChallengeWait` | `time.Duration` | `0` | Maximum time for the user to complete a detected challenge in headed mode. Zero or negative returns `ErrChallengeRequired`. See [Manual verification](/core-concepts-routing#manual-verification) |
-| `Profile` | `string` | `"Default"` | Chrome profile directory name, used only with `SameSession` |
+| `Profile` | `string` | last used profile | Chrome profile directory name, used only with `SameSession`; empty reads `profile.last_used` from Chrome's `Local State`, falling back to `Default` |
 | `Type` | `int` | `TypeMarkdown` | `TypeMarkdown`, `TypeHTML` or `TypeJSON`, see [Output Formats](/configuration-output-formats) |
 | `ScrollCount` | `int` | `3` | A negative value means no scrolling |
 

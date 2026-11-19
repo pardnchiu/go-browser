@@ -23,7 +23,7 @@
 | 訊息 | 原因 |
 |---|---|
 | `url.Parse: ...` | URL 無法解析 |
-| `invalid url: ...` | URL 缺 scheme，或 hostname 不含 `.` |
+| `[Invalid] <url>: ...` | URL 缺 scheme、hostname 不含 `.`、含帳密，或超過 2048 字元 |
 | `readability: no article extracted from N snapshots` | 所有快照都解析不出文章，且狀態碼小於 400 |
 | `acquireSem: context deadline exceeded` | 併發上限已滿直到 `timeout` 到期；見 [瀏覽器快取](/zh/core-concepts-browser-cache) |
 | `launcher.Launch: ...` | Chrome 啟動失敗，多半是找不到執行檔或沙箱限制 |

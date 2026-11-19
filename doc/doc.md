@@ -50,7 +50,7 @@ macOS always counts as having a display. On Linux with neither variable set, the
 | macOS | `~/Library/Application Support/Google/Chrome/<Profile>` |
 | Linux | `~/.config/google-chrome/<Profile>` |
 
-`<Profile>` defaults to `Default`; override it with `Option.Profile`. When the profile is missing, the library falls back to a regular cached browser instead of returning an error.
+`<Profile>` defaults to the profile Chrome used last (`profile.last_used` in `Local State`, `Default` when unreadable); override it with `Option.Profile`. When the profile is missing, the library falls back to a regular cached browser instead of returning an error.
 
 ## Usage
 
@@ -183,7 +183,7 @@ defer browser.Close()
 func Fetch(ctx context.Context, href string, timeout time.Duration, opt *Option) (*Result, error)
 ```
 
-Fetches the URL through Chrome. With `timeout <= 0`, there is no separate page-load deadline; caller cancellation and any configured challenge wait still apply. `href` must have a scheme and a hostname containing `.`, otherwise it returns `invalid url`.
+Fetches the URL through Chrome. With `timeout <= 0`, there is no separate page-load deadline; caller cancellation and any configured challenge wait still apply. `href` must have a scheme, a hostname containing `.`, no credentials and at most 2048 characters, otherwise it returns an `[Invalid] <url>: <reason>` error.
 
 Routing order:
 
@@ -221,6 +221,8 @@ Closes every cached browser instance. Cached instances idle for more than 5 minu
 | `HTMLToNode` | `func HTMLToNode(content, baseURL string, keepLinks bool) ([]*Node, error)` | Converts HTML to a node tree |
 | `DedupMarkdownParagraphs` | `func DedupMarkdownParagraphs(md string) string` | Removes duplicate Markdown paragraphs |
 | `DedupTree` | `func DedupTree(nodes []*Node) []*Node` | Removes duplicate nodes |
+| `ValidURL` | `func ValidURL(href string) (*url.URL, error)` | Parses `href` with the same checks as `Fetch`, except the scheme |
+| `IsErrorPageTitle` | `func IsErrorPageTitle(title string) bool` | Reports whether the title contains a not-found or access-denied phrase (`embed/error_page_titles.json`, case-insensitive) |
 
 `Fetch` chains these internally; each one also works standalone.
 
@@ -233,7 +235,7 @@ Closes every cached browser instance. Cached instances idle for more than 5 minu
 | `Visible` | `bool` | `false` | `true` goes headed directly when a display exists; without a display it falls back to headless first. Ignored when `Headless` is `true` |
 | `ChallengeWait` | `time.Duration` | `0` | Maximum wait for manual verification in headed mode; zero or negative disables waiting, and the option does not change routing |
 | `SameSession` | `bool` | `false` | Injects cookies from the local Chrome profile |
-| `Profile` | `string` | `"Default"` | Chrome profile name used by `SameSession` |
+| `Profile` | `string` | last used profile | Chrome profile name used by `SameSession`; empty reads `profile.last_used` from Chrome's `Local State`, falling back to `Default` |
 | `ScrollCount` | `int` | `3` | Scroll steps; negative means 0; stops early when the page is not scrollable or the snapshot stops changing |
 | `IdleWait` | `time.Duration` | `2s` | Upper bound for each DOM-settle wait |
 | `MaxLength` | `int` | `1 << 20` | Markdown output limit in bytes |

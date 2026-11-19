@@ -50,7 +50,7 @@ macOS 一律視為有顯示器。Linux 兩者皆未設定時，不做 headed 重
 | macOS | `~/Library/Application Support/Google/Chrome/<Profile>` |
 | Linux | `~/.config/google-chrome/<Profile>` |
 
-`<Profile>` 預設為 `Default`，可由 `Option.Profile` 指定。找不到 profile 時自動退回一般快取瀏覽器，不回傳錯誤。
+`<Profile>` 預設為 Chrome 最近使用的 profile（`Local State` 的 `profile.last_used`，讀不到時為 `Default`），可由 `Option.Profile` 指定。找不到 profile 時自動退回一般快取瀏覽器，不回傳錯誤。
 
 ## 使用方式
 
@@ -183,7 +183,7 @@ defer browser.Close()
 func Fetch(ctx context.Context, href string, timeout time.Duration, opt *Option) (*Result, error)
 ```
 
-以 Chrome 擷取指定 URL。`timeout <= 0` 時不另設頁面載入期限；呼叫端的 `ctx` 與已設定的驗證等待期限仍有效。`href` 需含 scheme 且主機名含 `.`，否則回傳 `invalid url`。
+以 Chrome 擷取指定 URL。`timeout <= 0` 時不另設頁面載入期限；呼叫端的 `ctx` 與已設定的驗證等待期限仍有效。`href` 需含 scheme、主機名含 `.`、不含帳密且不超過 2048 字元，否則回傳 `[Invalid] <url>: <原因>`。
 
 路由順序：
 
@@ -221,6 +221,8 @@ func Close()
 | `HTMLToNode` | `func HTMLToNode(content, baseURL string, keepLinks bool) ([]*Node, error)` | HTML 轉結構樹 |
 | `DedupMarkdownParagraphs` | `func DedupMarkdownParagraphs(md string) string` | 移除重複的 Markdown 段落 |
 | `DedupTree` | `func DedupTree(nodes []*Node) []*Node` | 移除重複的節點 |
+| `ValidURL` | `func ValidURL(href string) (*url.URL, error)` | 以 `Fetch` 相同的規則解析 `href`（不檢查 scheme） |
+| `IsErrorPageTitle` | `func IsErrorPageTitle(title string) bool` | 標題含找不到頁面或拒絕存取字樣時回傳 `true`（`embed/error_page_titles.json`，不分大小寫） |
 
 `Fetch` 內部已串接這些函式，亦可單獨使用。
 
@@ -233,7 +235,7 @@ func Close()
 | `Visible` | `bool` | `false` | `true` 在有顯示器時直接 headed；無顯示器時退回 headless 優先。`Headless` 為 `true` 時忽略 |
 | `ChallengeWait` | `time.Duration` | `0` | 在有視窗的瀏覽器等待手動驗證的上限；零或負值停用等待，不改變路由 |
 | `SameSession` | `bool` | `false` | 注入本機 Chrome profile 的 Cookie |
-| `Profile` | `string` | `"Default"` | `SameSession` 使用的 Chrome profile 名稱 |
+| `Profile` | `string` | 最近使用的 profile | `SameSession` 使用的 Chrome profile 名稱；空值時讀 Chrome `Local State` 的 `profile.last_used`，讀不到時為 `Default` |
 | `ScrollCount` | `int` | `3` | 捲動次數；負值視為 0；頁面不可捲動或快照未變時提前結束 |
 | `IdleWait` | `time.Duration` | `2s` | 每階段等待 DOM 穩定的上限 |
 | `MaxLength` | `int` | `1 << 20` | Markdown 輸出長度上限（位元組） |

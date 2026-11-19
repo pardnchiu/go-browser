@@ -17,7 +17,7 @@
 | `Headless` | `bool` | `false` | 強制 headless，不做有頭重試 |
 | `Visible` | `bool` | `false` | 有 GUI 時直接有頭、不重試；沒有 GUI 時退回 headless 優先。`Headless` 為 true 時忽略，見 [Fetch 路由](/zh/core-concepts-routing) |
 | `ChallengeWait` | `time.Duration` | `0` | 偵測到真人驗證時，有頭模式可等待使用者完成的最長時間；小於或等於零時回傳 `ErrChallengeRequired`。見 [真人驗證](/zh/core-concepts-routing#真人驗證) |
-| `Profile` | `string` | `"Default"` | Chrome 設定檔目錄名，僅 `SameSession` 使用 |
+| `Profile` | `string` | 最近使用的設定檔 | Chrome 設定檔目錄名，僅 `SameSession` 使用；空值時讀 Chrome `Local State` 的 `profile.last_used`，讀不到時為 `Default` |
 | `Type` | `int` | `TypeMarkdown` | `TypeMarkdown`、`TypeHTML` 或 `TypeJSON`，見 [輸出格式](/zh/configuration-output-formats) |
 | `ScrollCount` | `int` | `3` | 傳負值表示不捲動 |
 

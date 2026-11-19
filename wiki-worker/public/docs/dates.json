@@ -10,24 +10,24 @@
     "modified": "2026-11-19"
   },
   "en:getting-started": {
-    "hash": "7c1ee257819e56d67d064ed77b9a35abf91ceda462a7b73c222619bca4370857",
+    "hash": "5c355e018eafc4d2cd3931c8f081815aab8d465ee13703cd91005ac3c849aaac",
     "published": "2026-10-03",
-    "modified": "2026-11-19"
+    "modified": "2026-11-20"
   },
   "zh:getting-started": {
-    "hash": "babd30e0fbdf9823dcdc5dc4b9fdf6ebc350bad33be8709c3e0d5b05796d0014",
+    "hash": "cf79c58c1ae01d0ea0f5b3b8b048e739415f852707b247226c117532ccc23036",
     "published": "2026-10-03",
-    "modified": "2026-11-19"
+    "modified": "2026-11-20"
   },
   "en:getting-started-troubleshooting": {
-    "hash": "1805a0094e1aab6fa323cfcdfe424eb02cf71341e88218fb9377389569a0080a",
+    "hash": "8c7b1244ea3c59cef6191729c5a20ec33595b74bba3d4459146d08a733479478",
     "published": "2026-10-03",
-    "modified": "2026-11-19"
+    "modified": "2026-11-20"
   },
   "zh:getting-started-troubleshooting": {
-    "hash": "22ef48582097bca524c40e1111248590dacde2527955d86f685ec1ab9376c4f9",
+    "hash": "70786a23817dc9a3ddae3ed1049359fa52cdad55dda259ced9c1161674cfed36",
     "published": "2026-10-03",
-    "modified": "2026-11-19"
+    "modified": "2026-11-20"
   },
   "en:architecture": {
     "hash": "93469c2767a17e85c34a681694f10d05aa26f279f23de1e3e8a65eb332474759",
@@ -110,14 +110,14 @@
     "modified": "2026-11-19"
   },
   "en:configuration": {
-    "hash": "5ea70b787a68668505285662115c200cd6eae2c81066fb5ec4b427e4064d40ef",
+    "hash": "81f7cac8c87558e30906ab075ffa5a461bdc1d2eef1eccdb367eedd4006897da",
     "published": "2026-10-03",
-    "modified": "2026-11-19"
+    "modified": "2026-11-20"
   },
   "zh:configuration": {
-    "hash": "6aa10a4db18775a6af907f32a1d8bd0be22925052a84bfec280f7bfc4ce42a6a",
+    "hash": "54911047f41955d8b178d2e2ae6f5ea48ef6fd3907ed3d40c7cbc0693754133b",
     "published": "2026-10-03",
-    "modified": "2026-11-19"
+    "modified": "2026-11-20"
   },
   "en:configuration-output-formats": {
     "hash": "6df75e63c758f79b63e06ca61933a98f7dcd16f53aa44a7241780124fca0c1ac",
@@ -140,14 +140,14 @@
     "modified": "2026-11-19"
   },
   "en:api-reference": {
-    "hash": "d2abf3fad5bca4c2d141976c668576aea8e5674b0a74cab5cdbcabb7493279e5",
+    "hash": "6dfbca14254c0c7fa69ca8e896059c840778f9bed1732c04d530ed8a41ca90b6",
     "published": "2026-10-03",
-    "modified": "2026-11-19"
+    "modified": "2026-11-20"
   },
   "zh:api-reference": {
-    "hash": "96c38cbfe0605324a174f0c488d2454cac9a4dbc0956b64f95a52cd44d29073a",
+    "hash": "5892e7ee7ae58e052ee0a5fe0f95bcea9bd2b32f80561806c3a32cf67031283f",
     "published": "2026-10-03",
-    "modified": "2026-11-19"
+    "modified": "2026-11-20"
   },
   "en:api-reference-conversion": {
     "hash": "e530c3689334a7f17a0f291100a0c92876689076172a27ea85773b7ee4605852",
@@ -190,13 +190,13 @@
     "modified": "2026-11-19"
   },
   "en:agenvoy": {
-    "hash": "4fc5ceed75d082a92cd0b793c4a218598923026e4474fb8706755ac632016c4a",
+    "hash": "c1e6595b44237fed0e0486e2544a63dc65b873ca42dfa8fac2d4fa6f767dfb61",
     "published": "2026-11-19",
-    "modified": "2026-11-19"
+    "modified": "2026-11-20"
   },
   "zh:agenvoy": {
-    "hash": "8d7df341252db4dec59e743e2f70b7b58673cdf19290156324a668e8a0d92d24",
+    "hash": "270dc3f49bbbaf76db8287dbc5d3884f167b18a7473d6bf0980c0256506328b4",
     "published": "2026-11-19",
-    "modified": "2026-11-19"
+    "modified": "2026-11-20"
   }
 }
