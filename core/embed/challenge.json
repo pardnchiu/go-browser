@@ -1,0 +1,40 @@
+{
+  "titles": [
+    "just a moment",
+    "checking your browser",
+    "attention required",
+    "verify you are human",
+    "human verification",
+    "are you a robot",
+    "one more step",
+    "請稍候",
+    "请稍候",
+    "しばらくお待ちください"
+  ],
+  "popups": [
+    "iframe[src*='recaptcha/api2/bframe']",
+    "iframe[src*='recaptcha/enterprise/bframe']",
+    "iframe[src*='hcaptcha.com'][src*='frame=challenge']",
+    "iframe[src*='captcha-delivery.com']",
+    "iframe[src*='arkoselabs.com']",
+    "iframe[src*='funcaptcha.com']",
+    "#px-captcha",
+    ".geetest_box",
+    ".geetest_panel_box"
+  ],
+  "widgets": [
+    "#challenge-form",
+    "#challenge-stage",
+    ".cf-turnstile",
+    "iframe[src*='challenges.cloudflare.com']",
+    "iframe[src*='recaptcha/api2/anchor']:not([src*='size=invisible'])",
+    "iframe[src*='recaptcha/enterprise/anchor']:not([src*='size=invisible'])",
+    "iframe[src*='hcaptcha.com'][src*='frame=checkbox']"
+  ],
+  "responses": [
+    "[name='cf-turnstile-response']",
+    "[name='g-recaptcha-response']",
+    "[name='h-captcha-response']"
+  ],
+  "interstitialText": 2000
+}

@@ -40,19 +40,20 @@ type Viewport struct {
 }
 
 type Option struct {
-	IdleWait    time.Duration
-	MaxLength   int
-	UserAgent   string
-	KeepLinks   bool
-	StealthJS   string
-	SettleJS    string
-	Viewport    *Viewport
-	SameSession bool
-	Headless    bool
-	Visible     bool
-	Profile     string
-	Type        int
-	ScrollCount int
+	IdleWait      time.Duration
+	MaxLength     int
+	UserAgent     string
+	KeepLinks     bool
+	StealthJS     string
+	SettleJS      string
+	Viewport      *Viewport
+	SameSession   bool
+	Headless      bool
+	Visible       bool
+	Profile       string
+	Type          int
+	ScrollCount   int
+	ChallengeWait time.Duration
 
 	attemptHeadless bool
 }
@@ -270,9 +271,10 @@ func fetchWith(ctx context.Context, href string, parsed *url.URL, timeout time.D
 }
 
 func load(ctx context.Context, b *gorod.Browser, href string, parsed *url.URL, timeout time.Duration, opt *Option) (*Result, error) {
+	parent := ctx
 	if timeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, timeout)
+		ctx, cancel = context.WithTimeout(parent, timeout)
 		defer cancel()
 	}
 
@@ -282,13 +284,13 @@ func load(ctx context.Context, b *gorod.Browser, href string, parsed *url.URL, t
 	}
 	defer release()
 
-	page, err := b.Page(proto.TargetCreateTarget{URL: "about:blank"})
+	tab, err := b.Page(proto.TargetCreateTarget{URL: "about:blank"})
 	if err != nil {
 		return nil, fmt.Errorf("browser.Page: %w", err)
 	}
-	defer func() { _ = page.Close() }()
+	defer func() { _ = tab.Close() }()
 
-	page = page.Context(ctx)
+	page := tab.Context(ctx)
 
 	if opt.Viewport != nil {
 		scale := opt.Viewport.DeviceScaleFactor
@@ -315,6 +317,29 @@ func load(ctx context.Context, b *gorod.Browser, href string, parsed *url.URL, t
 	}
 	if err := waitLoad(ctx, page); err != nil {
 		return nil, fmt.Errorf("page.WaitLoad: %w", err)
+	}
+
+	if pending, err := hasChallenge(page); err == nil && pending {
+		if opt.attemptHeadless {
+			return nil, &Error{Status: 403, Href: href}
+		}
+		if opt.ChallengeWait <= 0 {
+			return nil, fmt.Errorf("%w: %s", ErrChallengeRequired, href)
+		}
+		if err := waitChallenge(parent, tab, href, opt.ChallengeWait); err != nil {
+			return nil, err
+		}
+		if timeout > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(parent, timeout)
+			defer cancel()
+		} else {
+			ctx = parent
+		}
+		page = tab.Context(ctx)
+		if err := waitLoad(ctx, page); err != nil {
+			return nil, fmt.Errorf("page.WaitLoad: %w", err)
+		}
 	}
 
 	finalURL := href
