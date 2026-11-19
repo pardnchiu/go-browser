@@ -1,0 +1,125 @@
+{
+  "home_title": {
+    "en": "HTML to Markdown via Headless Chrome for Go | go-browser",
+    "zh": "Go 爬蟲：動態網頁轉 Markdown｜go-browser"
+  },
+  "descriptions": {
+    "en": {
+      "home": "go-browser by Pardn Chiu (邱敬幃, pardnchiu) is a Go web scraping library that renders in headless Chrome and turns a URL to Markdown for LLMs, HTML or JSON.",
+      "getting-started": "Install go-browser with go get, check the Chrome and keyring prerequisites, run a first Fetch call that returns Markdown, and close cached browsers.",
+      "getting-started-troubleshooting": "What each go-browser error means: http 403, 429, 503, 404 and 204 status errors, invalid url, readability failures, and SameSession keychain errors.",
+      "agenvoy": "How the Agenvoy AI agent uses go-browser: fetch_page, download_file and search_web options, Chrome login reuse, failed-URL skipping, and result handling.",
+      "architecture": "How go-browser is layered: fetch routing, the browser launcher, Chrome cookie decryption, the Markdown pipeline, and how Agenvoy's AI agent tools call it.",
+      "core-concepts": "The eleven ordered steps of one go-browser Fetch call, from URL validation and routing through settling, consent and scrolling to output conversion.",
+      "core-concepts-routing": "How go-browser picks headless or headed Chrome: Option.Visible and social session domains go headed, other hosts retry headed only on 403, 429 or 503.",
+      "core-concepts-browser-cache": "How go-browser caches Chrome by headless mode and User-Agent, evicts idle instances after five minutes, and caps concurrent pages with SetMaxConcurrency.",
+      "core-concepts-cookie-session": "How SameSession copies your Chrome cookie database, decrypts v10 and v11 cookies with PBKDF2 and AES-128-CBC, and injects them into a throwaway browser.",
+      "core-concepts-snapshots": "How go-browser waits for the load event, decides a page has settled with DOM stability and requestIdleCallback, then scrolls to capture lazy content.",
+      "core-concepts-consent": "How go-browser dismisses cookie consent banners via known platform selectors, accept text or overlay removal, while leaving login walls and paywalls alone.",
+      "core-concepts-anti-detection": "The anti-detection measures in go-browser: AutomationControlled disabled, stealth.js navigator patches, paced scrolling, and the headed fallback.",
+      "configuration": "Every go-browser Option field with its default: IdleWait, MaxLength, UserAgent, KeepLinks, Viewport, SameSession, Headless, Visible, Type and ScrollCount.",
+      "configuration-output-formats": "What go-browser returns for TypeMarkdown, TypeHTML and TypeJSON, which Result fields each fills, and how JSON and XML documents bypass conversion.",
+      "configuration-environment": "Host settings go-browser reads: DISPLAY and WAYLAND_DISPLAY, Chrome binary lookup order, Chrome profile paths, and commands used by SameSession.",
+      "api-reference": "go-browser API reference for Fetch, Close and SetMaxConcurrency, with parameters, retry behavior and an index of every exported symbol.",
+      "api-reference-conversion": "HTMLToMarkdown, HTMLToNode, Merge, DedupTree, DedupMarkdownParagraphs and InlineTimeElements: element rules, deduplication and edge cases.",
+      "api-reference-types": "The Option, Viewport, Result, Error, Node and Browser types in go-browser, the TypeMarkdown, TypeHTML and TypeJSON constants, and ErrProfileNotFound.",
+      "removed-api": "Symbols removed from go-browser: the tab API removed in v0.3.2, the goBrowser to browser rename, and the v0.2.0 move to the core package."
+    },
+    "zh": {
+      "home": "邱敬幃（Pardn Chiu，pardnchiu）的 Go 爬蟲函式庫：以 Chrome 渲染動態網頁、擷取主要內容，將網頁轉 Markdown 給 LLM。",
+      "getting-started": "以 go get 安裝 go-browser、確認 Chrome 前置需求、第一次 Fetch 取得 Markdown 並關閉瀏覽器。",
+      "getting-started-troubleshooting": "go-browser 錯誤對照：http 403／429／503／404／204、invalid url、readability 與鑰匙圈錯誤。",
+      "agenvoy": "Agenvoy AI agent 如何使用 go-browser：fetch_page、download_file、search_web 的選項、沿用 Chrome 登入、失敗略過與結果處理。",
+      "architecture": "go-browser 分層：Fetch 路由、瀏覽器啟動器、Cookie 解密與 Markdown 管線，以及 Agenvoy 的 AI agent 工具如何呼叫它。",
+      "core-concepts": "一次 Fetch 依序執行的十一個步驟：驗證、路由、等待穩定、同意橫幅、捲動與輸出轉換。",
+      "core-concepts-routing": "go-browser 如何選擇 headless 或有頭 Chrome：Visible 與社群網域直接有頭，其餘僅在 403／429／503 時有頭重試。",
+      "core-concepts-browser-cache": "以 headless 與 User-Agent 快取 Chrome、閒置 5 分鐘回收，並以 SetMaxConcurrency 限制併發。",
+      "core-concepts-cookie-session": "SameSession 複製並解密本機 Chrome Cookie（PBKDF2＋AES-128-CBC），注入一次性瀏覽器讀取登入頁。",
+      "core-concepts-snapshots": "等待 load 事件（上限 10 秒）、以 DOM 穩定與 requestIdleCallback 判定載入完成，再捲動擷取延遲載入內容的快照。",
+      "core-concepts-consent": "以已知平台選擇器、同意字樣或移除遮罩關閉 Cookie 同意橫幅，不碰登入牆與付費牆。",
+      "core-concepts-anti-detection": "go-browser 反偵測：停用 AutomationControlled、stealth.js 修改 navigator、擬人化捲動與有頭降級。",
+      "configuration": "go-browser Option 欄位與預設值：IdleWait、MaxLength、KeepLinks、Viewport、Visible、Type 等。",
+      "configuration-output-formats": "TypeMarkdown、TypeHTML、TypeJSON 的回傳內容與填入欄位，以及 JSON／XML 文件的直通路徑。",
+      "configuration-environment": "go-browser 讀取的主機設定：DISPLAY、Chrome 執行檔與設定檔路徑、SameSession 外部指令。",
+      "api-reference": "go-browser 的 Fetch、Close、SetMaxConcurrency 參數與重試行為，以及全部匯出符號索引。",
+      "api-reference-conversion": "HTMLToMarkdown、HTMLToNode、Merge、DedupTree 等六個轉換函式的規則、去重與邊界。",
+      "api-reference-types": "go-browser 的 Option、Result、Error、Node 等型別，輸出格式常數與 ErrProfileNotFound。",
+      "removed-api": "go-browser 已移除符號：v0.3.2 的分頁 API、goBrowser 更名 browser、v0.2.0 搬到 core。"
+    }
+  },
+  "keywords": {
+    "en": {
+      "home": "go-browser, html to markdown, headless chrome, web scraping, url to markdown, markdown for llm, Agenvoy, AI agent, 邱敬幃, Pardn Chiu, pardnchiu",
+      "getting-started": "go-browser install, go get, chrome prerequisites, secret-tool, first fetch",
+      "getting-started-troubleshooting": "go-browser errors, http 403, http 204, invalid url, readability no article, keychain",
+      "agenvoy": "Agenvoy, AI agent web browsing, fetch_page, search_web, headless chrome",
+      "architecture": "go-browser architecture, fetch routing, browser launcher, cookie decryption, content pipeline, Agenvoy, AI agent",
+      "core-concepts": "fetch pipeline, go-browser lifecycle, context timeout, settle, scroll, convert",
+      "core-concepts-routing": "headless first, headed fallback, Option.Visible, blocked 403 429 503, session domains, hasDisplay",
+      "core-concepts-browser-cache": "browser cache, idle eviction, SetMaxConcurrency, semaphore, Close",
+      "core-concepts-cookie-session": "chrome cookie session, SameSession, cookie decryption, PBKDF2, AES-128-CBC, Chrome Safe Storage",
+      "core-concepts-snapshots": "WaitDOMStable, requestIdleCallback, scroll snapshots, lazy loading, infinite scroll",
+      "core-concepts-consent": "cookie consent dismissal, consent banner, OneTrust, Cookiebot, paywall detection",
+      "core-concepts-anti-detection": "anti-detection, stealth.js, AutomationControlled, navigator.webdriver, user agent",
+      "configuration": "go-browser Option, IdleWait, MaxLength, KeepLinks, Viewport, ScrollCount, SameSession, Visible",
+      "configuration-output-formats": "TypeMarkdown, TypeHTML, TypeJSON, html to markdown, json node tree",
+      "configuration-environment": "DISPLAY, WAYLAND_DISPLAY, chrome binary path, chrome profile path, docker headless",
+      "api-reference": "go-browser api, Fetch, Close, SetMaxConcurrency",
+      "api-reference-conversion": "HTMLToMarkdown, HTMLToNode, Merge, DedupTree, DedupMarkdownParagraphs, InlineTimeElements",
+      "api-reference-types": "Option, Result, Error, Node, Viewport, ErrProfileNotFound, DefaultUserAgent",
+      "removed-api": "go-browser removed api, CreateTab, TabClick, goBrowser rename, migration"
+    },
+    "zh": {
+      "home": "go-browser, 爬蟲, 動態網頁, Markdown, Golang, Agenvoy, AI agent, 邱敬幃, Pardn Chiu, pardnchiu",
+      "architecture": "go-browser 架構, Fetch 路由, Cookie 解密, Agenvoy, AI agent",
+      "agenvoy": "Agenvoy, AI agent 瀏覽網頁, fetch_page, search_web, 無頭瀏覽器"
+    }
+  },
+  "brand_keywords": [],
+  "person": {
+    "id": "https://pardn.io/#pardnchiu",
+    "name": "Pardn Chiu",
+    "name_zh": "邱敬幃",
+    "alt_names": [
+      "邱敬幃",
+      "Chiu Ching-Wei",
+      "pardnchiu"
+    ],
+    "same_as": [
+      "https://pardn.io/",
+      "https://www.linkedin.com/in/pardnchiu",
+      "https://github.com/pardnchiu",
+      "https://dev.to/pardnchiu",
+      "https://x.com/pardnchiu"
+    ]
+  },
+  "organization": {
+    "id": "https://pardn.io/#organization",
+    "url": "https://pardn.io/",
+    "name": "Pardn Co., Ltd",
+    "name_zh": "帕登國際有限公司",
+    "same_as": [
+      "https://github.com/pardnio"
+    ]
+  },
+  "tagline": "Taiwan · Infrastructure Engineering",
+  "used_by": [
+    {
+      "name": "Agenvoy",
+      "url": {
+        "en": "https://agenvoy.com/",
+        "zh": "https://agenvoy.com/zh/"
+      }
+    }
+  ],
+  "og_image": "https://pardn.io/logo.jpg",
+  "favicon": "/favicon.png",
+  "x_default": "",
+  "ai_usage": {
+    "train": "y",
+    "input": "y",
+    "search": "y"
+  },
+  "programming_language": "Go",
+  "license_url": "https://opensource.org/licenses/MIT"
+}

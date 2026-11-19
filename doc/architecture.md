@@ -1,8 +1,8 @@
 # go-browser - Architecture
 
-Last updated: 2026-10-06
+Last updated: 2026-11-19
 
-> Back to [README](../README.md)
+> Back to [README](../README.md) · [Online architecture](https://go-browser.pardn.io/architecture)
 
 ## Overview
 
@@ -10,7 +10,7 @@ Last updated: 2026-10-06
 graph TB
     A[Fetch] --> B{Route}
     B -->|Headless forced| C[headless]
-    B -->|Social domain + display| D[headed]
+    B -->|Visible or session domain + GUI| D[headed]
     B -->|Default| E[headless first]
     E -->|403/429/503 + display| D
     C --> F{SameSession?}
@@ -89,7 +89,14 @@ graph TB
         A[acquireSem] --> B[New page + Viewport]
         B --> C[StealthJS EvalOnNewDocument]
         C --> D[Navigate + WaitLoad]
-        D --> E{Final URL has 403/404?}
+        D --> S{Challenge detected?}
+        S -->|No| E{Final URL has 403/404?}
+        S -->|Headless| T[403 for routing]
+        S -->|Headed, wait disabled| U[ErrChallengeRequired]
+        S -->|Headed, wait enabled| V[Wait for user in the same tab]
+        V -->|Cleared| W[Renew load deadline + WaitLoad]
+        W --> E
+        V -->|Expired or canceled| Z[ErrChallenge or context error]
         E -->|Yes| X[Error]
         E -->|No| F{Content-Type JSON/XML?}
         F -->|Yes| Y[Return raw body]
@@ -171,15 +178,22 @@ sequenceDiagram
         Launcher->>Chrome: reuse or launch instance
     end
     Fetch->>Chrome: Navigate + WaitLoad
+    Fetch->>Chrome: Detect challenge before output dispatch
+    opt Default headless attempt blocked, GUI available
+        Fetch->>Launcher: Retry once in headed mode
+        Fetch->>Chrome: Navigate + WaitLoad + check for challenge again
+    end
+    opt Headed challenge with wait enabled
+        Fetch->>Chrome: Wait for user in the same tab
+        Chrome-->>Fetch: Challenge cleared
+        Fetch->>Chrome: Renew load deadline and wait for load
+    end
     Fetch->>Chrome: settle + SettleJS + consent
     loop Up to ScrollCount times
         Fetch->>Chrome: scroll + HTML snapshot
     end
     Fetch->>Markdown: Merge / Readability / HTMLToMarkdown / HTMLToNode
     Markdown-->>Fetch: content
-    opt Headless blocked with display
-        Fetch->>Launcher: headed retry
-    end
     Fetch-->>Caller: Result or Error
 ```
 

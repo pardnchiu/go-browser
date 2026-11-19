@@ -1,0 +1,112 @@
+[
+  {
+    "package": "core",
+    "name": "TypeMarkdown",
+    "kind": "const-or-var"
+  },
+  {
+    "package": "core",
+    "name": "TypeHTML",
+    "kind": "const-or-var"
+  },
+  {
+    "package": "core",
+    "name": "TypeJSON",
+    "kind": "const-or-var"
+  },
+  {
+    "package": "core",
+    "name": "DefaultUserAgent",
+    "kind": "const"
+  },
+  {
+    "package": "core",
+    "name": "ErrChallenge",
+    "kind": "var"
+  },
+  {
+    "package": "core",
+    "name": "ErrChallengeRequired",
+    "kind": "var"
+  },
+  {
+    "package": "core",
+    "name": "ErrProfileNotFound",
+    "kind": "var"
+  },
+  {
+    "package": "core",
+    "name": "Close",
+    "kind": "func"
+  },
+  {
+    "package": "core",
+    "name": "DedupMarkdownParagraphs",
+    "kind": "func"
+  },
+  {
+    "package": "core",
+    "name": "HTMLToMarkdown",
+    "kind": "func"
+  },
+  {
+    "package": "core",
+    "name": "InlineTimeElements",
+    "kind": "func"
+  },
+  {
+    "package": "core",
+    "name": "Merge",
+    "kind": "func"
+  },
+  {
+    "package": "core",
+    "name": "SetMaxConcurrency",
+    "kind": "func"
+  },
+  {
+    "package": "core",
+    "name": "Browser",
+    "kind": "type"
+  },
+  {
+    "package": "core",
+    "name": "Error",
+    "kind": "type"
+  },
+  {
+    "package": "core",
+    "name": "Node",
+    "kind": "type"
+  },
+  {
+    "package": "core",
+    "name": "DedupTree",
+    "kind": "func"
+  },
+  {
+    "package": "core",
+    "name": "HTMLToNode",
+    "kind": "func"
+  },
+  {
+    "package": "core",
+    "name": "Option",
+    "kind": "type"
+  },
+  {
+    "package": "core",
+    "name": "Result",
+    "kind": "type"
+  },
+  {
+    "package": "core",
+    "name": "Fetch",
+    "kind": "func"
+  },
+  {
+    "package": "core",
+    "name": "Viewport",
+    "kind": "type"
+  }
+]
